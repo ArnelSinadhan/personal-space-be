@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_current_vault_user_id, get_db
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.vault import (
@@ -16,6 +16,7 @@ from app.schemas.vault import (
     VaultEntryCreate,
     VaultEntryListResponse,
     VaultEntryOut,
+    VaultEntryPasswordResponse,
     VaultEntryUpdate,
 )
 from app.services.vault_service import VaultService
@@ -147,3 +148,17 @@ async def delete_entry(
     except ValueError:
         raise HTTPException(status_code=404, detail="Entry not found")
     return MessageResponse(message="Deleted")
+
+
+@router.get("/entries/{entry_id}/password", response_model=VaultEntryPasswordResponse)
+async def reveal_entry_password(
+    entry_id: UUID,
+    vault_user_id: UUID = Depends(get_current_vault_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    service = VaultService(db)
+    try:
+        password = await service.reveal_password(entry_id, vault_user_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return VaultEntryPasswordResponse(password=password)

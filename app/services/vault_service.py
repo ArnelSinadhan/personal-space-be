@@ -123,6 +123,12 @@ class VaultService:
             raise ValueError("Entry not found")
         await self.entry_repo.delete(entry)
 
+    async def reveal_password(self, entry_id: UUID, user_id: UUID) -> str:
+        entry = await self.entry_repo.get_by_id_for_user(entry_id, user_id)
+        if entry is None:
+            raise ValueError("Entry not found")
+        return decrypt_password(entry.encrypted_password)
+
     # -- Serialization -------------------------------------------------------
 
     def _entry_to_out(self, entry: VaultEntry) -> VaultEntryOut:
@@ -130,7 +136,8 @@ class VaultService:
             id=entry.id,
             title=entry.title,
             username=entry.username,
-            password=decrypt_password(entry.encrypted_password),
+            password=None,
+            has_password=bool(entry.encrypted_password),
             category_id=entry.category_id,
             icon_name=entry.icon_name,
             created_at=entry.created_at.isoformat() if entry.created_at else None,

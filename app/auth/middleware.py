@@ -1,9 +1,13 @@
+from uuid import UUID
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
+import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 
@@ -52,3 +56,41 @@ async def get_current_user(
         await db.flush()
 
     return user
+
+
+async def get_current_vault_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> UUID:
+    token = credentials.credentials
+
+    try:
+        decoded = jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
+        )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Vault session has expired",
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid vault session",
+        )
+
+    if decoded.get("type") != "vault_session":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid vault session",
+        )
+
+    sub = decoded.get("sub")
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid vault session",
+        )
+
+    return UUID(sub)

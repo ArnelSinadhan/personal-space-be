@@ -65,12 +65,17 @@ class VaultEntryOut(BaseModel):
     id: UUID
     title: str
     username: str
-    password: str  # Decrypted for display
+    password: str | None = None
+    has_password: bool = True
     category_id: UUID | None = None
     icon_name: str | None = None
     created_at: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class VaultEntryPasswordResponse(BaseModel):
+    password: str
 
 
 # ---------------------------------------------------------------------------

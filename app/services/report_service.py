@@ -104,8 +104,9 @@ class ReportService:
 
     async def _compute_streak(self, user_id: UUID) -> int:
         """Count consecutive days with at least 1 completed task."""
+        completed_day = func.date_trunc("day", Todo.completed_at)
         result = await self.db.execute(
-            select(func.date_trunc("day", Todo.completed_at).label("day"))
+            select(completed_day.label("day"))
             .join(Project, Todo.project_id == Project.id)
             .join(WorkExperience, Project.work_experience_id == WorkExperience.id)
             .join(Profile, WorkExperience.profile_id == Profile.id)
@@ -114,8 +115,8 @@ class ReportService:
                 Todo.status == TodoStatus.DONE.value,
                 Todo.completed_at.isnot(None),
             )
-            .group_by("day")
-            .order_by(func.date_trunc("day", Todo.completed_at).desc())
+            .group_by(completed_day)
+            .order_by(completed_day.desc())
         )
         days = [r.day.date() if hasattr(r.day, "date") else r.day for r in result.all()]
 

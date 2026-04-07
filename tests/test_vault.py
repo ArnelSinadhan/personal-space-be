@@ -68,17 +68,39 @@ async def test_vault_entry_crud(client: AsyncClient):
     assert response.status_code == 201
     entry = response.json()
     entry_id = entry["id"]
-    assert entry["password"] == "SuperSecret123!"  # Decrypted in response
+    assert entry["password"] is None
+    assert entry["has_password"] is True
+
+    verify = await client.post("/api/v1/vault/verify-pin", json={"pin": "123456"})
+    if verify.status_code != 200 or not verify.json()["success"]:
+        await client.post("/api/v1/vault/set-pin", json={"pin": "123456"})
+        verify = await client.post("/api/v1/vault/verify-pin", json={"pin": "123456"})
+    vault_token = verify.json()["vault_token"]
+
+    response = await client.get(
+        f"/api/v1/vault/entries/{entry_id}/password",
+        headers={"Authorization": f"Bearer {vault_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["password"] == "SuperSecret123!"
 
     # List entries
     response = await client.get("/api/v1/vault/entries")
     assert response.status_code == 200
     assert len(response.json()["data"]) >= 1
+    assert response.json()["data"][0]["password"] is None
 
     # Update
     response = await client.put(f"/api/v1/vault/entries/{entry_id}", json={
         "password": "NewPassword456!",
     })
+    assert response.status_code == 200
+    assert response.json()["password"] is None
+
+    response = await client.get(
+        f"/api/v1/vault/entries/{entry_id}/password",
+        headers={"Authorization": f"Bearer {vault_token}"},
+    )
     assert response.status_code == 200
     assert response.json()["password"] == "NewPassword456!"
 
