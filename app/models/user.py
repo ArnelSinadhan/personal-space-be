@@ -12,7 +12,6 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False, lazy="selectin")  # type: ignore[name-defined] # noqa: F821
-    companies: Mapped[list["Company"]] = relationship(back_populates="user", lazy="selectin")  # type: ignore[name-defined] # noqa: F821
     resume: Mapped["Resume"] = relationship(back_populates="user", uselist=False, lazy="selectin")  # type: ignore[name-defined] # noqa: F821
     vault_pin: Mapped["VaultPin"] = relationship(back_populates="user", uselist=False, lazy="selectin")  # type: ignore[name-defined] # noqa: F821
     vault_categories: Mapped[list["VaultCategory"]] = relationship(back_populates="user", lazy="selectin")  # type: ignore[name-defined] # noqa: F821

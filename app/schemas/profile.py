@@ -2,6 +2,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.project import ProjectOut
+
 
 # ---------------------------------------------------------------------------
 # Nested sub-schemas
@@ -23,6 +25,14 @@ class WorkExperienceUpdate(WorkExperienceCreate):
 class WorkExperienceOut(WorkExperienceCreate):
     id: UUID
     model_config = {"from_attributes": True}
+
+
+class WorkExperienceWorkspaceOut(WorkExperienceOut):
+    projects: list[ProjectOut] = []
+
+
+class WorkExperienceListResponse(BaseModel):
+    data: list[WorkExperienceWorkspaceOut]
 
 
 class EducationCreate(BaseModel):

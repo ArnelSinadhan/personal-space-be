@@ -24,8 +24,8 @@ project_tech_stacks = Table(
 class Project(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "projects"
 
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    work_experience_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_experiences.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
@@ -33,7 +33,7 @@ class Project(Base, UUIDMixin, TimestampMixin):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     # Relationships
-    company: Mapped["Company"] = relationship(back_populates="projects")  # type: ignore[name-defined] # noqa: F821
+    work_experience: Mapped["WorkExperience"] = relationship(back_populates="projects")  # type: ignore[name-defined] # noqa: F821
     todos: Mapped[list["Todo"]] = relationship(  # type: ignore[name-defined] # noqa: F821
         back_populates="project", cascade="all, delete-orphan", order_by="Todo.sort_order", lazy="selectin"
     )

@@ -3,47 +3,40 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_company_crud(client: AsyncClient):
-    # Create
-    response = await client.post("/api/v1/companies", json={
-        "name": "Hipe Japan Inc",
-        "role": "Software Engineer",
+async def test_workspace_list(client: AsyncClient):
+    response = await client.post("/api/v1/profile/work-experience", json={
+        "title": "Software Engineer",
+        "company": "Hipe Japan Inc",
         "start_date": "September 2024",
         "is_current": True,
     })
     assert response.status_code == 201
-    company = response.json()["data"]
-    company_id = company["id"]
-    assert company["name"] == "Hipe Japan Inc"
+    workspace = response.json()
+    workspace_id = workspace["id"]
+    assert workspace["company"] == "Hipe Japan Inc"
 
-    # List
-    response = await client.get("/api/v1/companies")
+    response = await client.get("/api/v1/work-experiences")
     assert response.status_code == 200
-    assert len(response.json()["data"]) >= 1
+    data = response.json()["data"]
+    assert len(data) >= 1
+    assert any(item["id"] == workspace_id for item in data)
 
-    # Update
-    response = await client.put(f"/api/v1/companies/{company_id}", json={
-        "name": "Hipe Japan Inc (Updated)",
-    })
+    response = await client.get("/api/v1/work-experiences", params={"current_only": "true"})
     assert response.status_code == 200
-    assert response.json()["data"]["name"] == "Hipe Japan Inc (Updated)"
-
-    # Delete
-    response = await client.delete(f"/api/v1/companies/{company_id}")
-    assert response.status_code == 200
+    assert any(item["id"] == workspace_id for item in response.json()["data"])
 
 
 @pytest.mark.asyncio
 async def test_project_and_todo_flow(client: AsyncClient):
-    # Create company first
-    response = await client.post("/api/v1/companies", json={
-        "name": "Test Co",
+    response = await client.post("/api/v1/profile/work-experience", json={
+        "title": "Engineer",
+        "company": "Test Co",
         "start_date": "2024",
     })
-    company_id = response.json()["data"]["id"]
+    work_experience_id = response.json()["id"]
 
     # Create project
-    response = await client.post(f"/api/v1/companies/{company_id}/projects", json={
+    response = await client.post(f"/api/v1/work-experiences/{work_experience_id}/projects", json={
         "name": "Client Management System",
         "description": "Internal tool",
         "tech_stack": ["Next.js", "TypeScript", "FastAPI"],
@@ -92,13 +85,13 @@ async def test_project_and_todo_flow(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_bulk_update_todos(client: AsyncClient):
-    # Setup: company → project → 2 todos
-    resp = await client.post("/api/v1/companies", json={
-        "name": "Bulk Co", "start_date": "2024",
+    # Setup: work experience → project → 2 todos
+    resp = await client.post("/api/v1/profile/work-experience", json={
+        "title": "Engineer", "company": "Bulk Co", "start_date": "2024",
     })
-    company_id = resp.json()["data"]["id"]
+    work_experience_id = resp.json()["id"]
 
-    resp = await client.post(f"/api/v1/companies/{company_id}/projects", json={
+    resp = await client.post(f"/api/v1/work-experiences/{work_experience_id}/projects", json={
         "name": "Bulk Project", "tech_stack": [],
     })
     project_id = resp.json()["data"]["id"]

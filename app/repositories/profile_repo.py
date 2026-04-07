@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.profile import EducationEntry, Profile, Skill, SocialLink, WorkExperience
+from app.models.project import Project
 from app.repositories.base import BaseRepository
 
 
@@ -28,13 +29,44 @@ class ProfileRepository(BaseRepository[Profile]):
     async def get_or_create(self, user_id: UUID) -> Profile:
         profile = await self.get_by_user_id(user_id)
         if profile is None:
-            profile = await self.create(user_id=user_id)
+            await self.create(user_id=user_id)
+            profile = await self.get_by_user_id(user_id)
+        if profile is None:
+            raise RuntimeError(f"Failed to load profile for user {user_id}")
         return profile
 
 
 class WorkExperienceRepository(BaseRepository[WorkExperience]):
     def __init__(self, db: AsyncSession):
         super().__init__(WorkExperience, db)
+
+    async def get_all_for_user(self, user_id: UUID, *, current_only: bool = False) -> list[WorkExperience]:
+        stmt = (
+            select(WorkExperience)
+            .join(Profile, WorkExperience.profile_id == Profile.id)
+            .where(Profile.user_id == user_id)
+            .options(
+                selectinload(WorkExperience.projects).selectinload(Project.todos),
+                selectinload(WorkExperience.projects).selectinload(Project.tech_stack),
+            )
+            .order_by(WorkExperience.sort_order)
+        )
+        if current_only:
+            stmt = stmt.where(WorkExperience.is_current.is_(True))
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_by_id_for_user(self, entry_id: UUID, user_id: UUID) -> WorkExperience | None:
+        result = await self.db.execute(
+            select(WorkExperience)
+            .join(Profile, WorkExperience.profile_id == Profile.id)
+            .where(WorkExperience.id == entry_id, Profile.user_id == user_id)
+            .options(
+                selectinload(WorkExperience.projects).selectinload(Project.todos),
+                selectinload(WorkExperience.projects).selectinload(Project.tech_stack),
+            )
+        )
+        return result.scalar_one_or_none()
 
 
 class EducationRepository(BaseRepository[EducationEntry]):

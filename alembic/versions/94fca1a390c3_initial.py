@@ -35,22 +35,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_firebase_uid'), 'users', ['firebase_uid'], unique=True)
-    op.create_table('companies',
-    sa.Column('user_id', sa.UUID(), nullable=False),
-    sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('logo_url', sa.Text(), nullable=True),
-    sa.Column('role', sa.String(length=255), nullable=True),
-    sa.Column('start_date', sa.String(length=100), nullable=True),
-    sa.Column('end_date', sa.String(length=100), nullable=True),
-    sa.Column('is_current', sa.Boolean(), nullable=False),
-    sa.Column('sort_order', sa.Integer(), nullable=False),
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_companies_user_id'), 'companies', ['user_id'], unique=False)
     op.create_table('profiles',
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=True),
@@ -125,19 +109,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['skill_id'], ['skills.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('profile_id', 'skill_id')
     )
-    op.create_table('projects',
-    sa.Column('company_id', sa.UUID(), nullable=False),
-    sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('is_public', sa.Boolean(), nullable=False),
-    sa.Column('sort_order', sa.Integer(), nullable=False),
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_projects_company_id'), 'projects', ['company_id'], unique=False)
     op.create_table('resume_educations',
     sa.Column('resume_id', sa.UUID(), nullable=False),
     sa.Column('degree', sa.String(length=255), nullable=False),
@@ -228,6 +199,19 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['profile_id'], ['profiles.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('projects',
+    sa.Column('work_experience_id', sa.UUID(), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('is_public', sa.Boolean(), nullable=False),
+    sa.Column('sort_order', sa.Integer(), nullable=False),
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['work_experience_id'], ['work_experiences.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_projects_work_experience_id'), 'projects', ['work_experience_id'], unique=False)
     op.create_table('project_tech_stacks',
     sa.Column('project_id', sa.UUID(), nullable=False),
     sa.Column('skill_id', sa.UUID(), nullable=False),
@@ -266,6 +250,8 @@ def downgrade() -> None:
     op.drop_table('todos')
     op.drop_table('resume_project_tech_stacks')
     op.drop_table('project_tech_stacks')
+    op.drop_index(op.f('ix_projects_work_experience_id'), table_name='projects')
+    op.drop_table('projects')
     op.drop_table('work_experiences')
     op.drop_index(op.f('ix_vault_entries_user_id'), table_name='vault_entries')
     op.drop_index(op.f('ix_vault_entries_category_id'), table_name='vault_entries')
@@ -276,8 +262,6 @@ def downgrade() -> None:
     op.drop_table('resume_links')
     op.drop_table('resume_experiences')
     op.drop_table('resume_educations')
-    op.drop_index(op.f('ix_projects_company_id'), table_name='projects')
-    op.drop_table('projects')
     op.drop_table('profile_skills')
     op.drop_table('education_entries')
     op.drop_table('vault_pins')
@@ -285,8 +269,6 @@ def downgrade() -> None:
     op.drop_table('vault_categories')
     op.drop_table('resumes')
     op.drop_table('profiles')
-    op.drop_index(op.f('ix_companies_user_id'), table_name='companies')
-    op.drop_table('companies')
     op.drop_index(op.f('ix_users_firebase_uid'), table_name='users')
     op.drop_table('users')
     op.drop_table('skills')

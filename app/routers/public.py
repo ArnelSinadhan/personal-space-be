@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models.company import Company
 from app.models.profile import EducationEntry, Profile, WorkExperience
 from app.models.project import Project
 from app.models.user import User
@@ -84,23 +83,24 @@ async def public_work_experience(db: AsyncSession = Depends(get_db)):
 async def public_projects(db: AsyncSession = Depends(get_db)):
     user = await _get_first_user(db)
     result = await db.execute(
-        select(Company)
-        .where(Company.user_id == user.id)
+        select(WorkExperience)
+        .join(Profile, WorkExperience.profile_id == Profile.id)
+        .where(Profile.user_id == user.id)
         .options(
-            selectinload(Company.projects).selectinload(Project.tech_stack)
+            selectinload(WorkExperience.projects).selectinload(Project.tech_stack)
         )
     )
-    companies = result.scalars().all()
+    work_experiences = result.scalars().all()
 
     projects = []
-    for company in companies:
-        for p in company.projects:
+    for work_experience in work_experiences:
+        for p in work_experience.projects:
             if not p.is_public:
                 continue
             projects.append({
                 "name": p.name,
                 "description": p.description,
-                "company": company.name,
+                "company": work_experience.company,
                 "tech_stack": [s.name for s in p.tech_stack],
             })
 

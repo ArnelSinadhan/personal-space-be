@@ -5,7 +5,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import ReportPeriod, TodoStatus
-from app.models.company import Company
+from app.models.profile import Profile, WorkExperience
 from app.models.project import Project
 from app.models.todo import Todo
 from app.schemas.report import CompletedTaskOut, GroupedTasks, ReportSummary
@@ -29,8 +29,9 @@ class ReportService:
             select(func.count())
             .select_from(Todo)
             .join(Project, Todo.project_id == Project.id)
-            .join(Company, Project.company_id == Company.id)
-            .where(Company.user_id == user_id, Todo.status == TodoStatus.DONE.value)
+            .join(WorkExperience, Project.work_experience_id == WorkExperience.id)
+            .join(Profile, WorkExperience.profile_id == Profile.id)
+            .where(Profile.user_id == user_id, Todo.status == TodoStatus.DONE.value)
         )
 
         today_q = base.where(Todo.completed_at >= today_start)
@@ -70,11 +71,18 @@ class ReportService:
 
     async def _fetch_completed_tasks(self, user_id: UUID) -> list[CompletedTaskOut]:
         result = await self.db.execute(
-            select(Todo.id, Todo.title, Todo.completed_at, Project.name.label("project_name"), Company.name.label("company_name"))
+            select(
+                Todo.id,
+                Todo.title,
+                Todo.completed_at,
+                Project.name.label("project_name"),
+                WorkExperience.company.label("company_name"),
+            )
             .join(Project, Todo.project_id == Project.id)
-            .join(Company, Project.company_id == Company.id)
+            .join(WorkExperience, Project.work_experience_id == WorkExperience.id)
+            .join(Profile, WorkExperience.profile_id == Profile.id)
             .where(
-                Company.user_id == user_id,
+                Profile.user_id == user_id,
                 Todo.status == TodoStatus.DONE.value,
                 Todo.completed_at.isnot(None),
             )
@@ -99,9 +107,10 @@ class ReportService:
         result = await self.db.execute(
             select(func.date_trunc("day", Todo.completed_at).label("day"))
             .join(Project, Todo.project_id == Project.id)
-            .join(Company, Project.company_id == Company.id)
+            .join(WorkExperience, Project.work_experience_id == WorkExperience.id)
+            .join(Profile, WorkExperience.profile_id == Profile.id)
             .where(
-                Company.user_id == user_id,
+                Profile.user_id == user_id,
                 Todo.status == TodoStatus.DONE.value,
                 Todo.completed_at.isnot(None),
             )

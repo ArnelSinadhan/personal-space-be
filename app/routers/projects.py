@@ -24,7 +24,7 @@ async def update_project(
 ):
     service = ProjectService(db)
     try:
-        project = await service.update_project(project_id, payload)
+        project = await service.update_project(project_id, user.id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Project not found")
     return ProjectResponse(data=project)
@@ -38,7 +38,7 @@ async def delete_project(
 ):
     service = ProjectService(db)
     try:
-        await service.delete_project(project_id)
+        await service.delete_project(project_id, user.id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Project not found")
     return MessageResponse(message="Deleted")
@@ -54,7 +54,10 @@ async def create_todo(
     db: AsyncSession = Depends(get_db),
 ):
     service = ProjectService(db)
-    return await service.create_todo(project_id, payload)
+    try:
+        return await service.create_todo(project_id, user.id, payload)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Project not found")
 
 
 @router.patch("/todos/{todo_id}", response_model=TodoOut)
@@ -66,7 +69,7 @@ async def update_todo(
 ):
     service = ProjectService(db)
     try:
-        return await service.update_todo(todo_id, payload)
+        return await service.update_todo(todo_id, user.id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Todo not found")
 
@@ -78,7 +81,7 @@ async def bulk_update_todos(
     db: AsyncSession = Depends(get_db),
 ):
     service = ProjectService(db)
-    return await service.bulk_update_todos(payload)
+    return await service.bulk_update_todos(user.id, payload)
 
 
 @router.delete("/todos/{todo_id}", response_model=MessageResponse)
@@ -89,7 +92,7 @@ async def delete_todo(
 ):
     service = ProjectService(db)
     try:
-        await service.delete_todo(todo_id)
+        await service.delete_todo(todo_id, user.id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Todo not found")
     return MessageResponse(message="Deleted")

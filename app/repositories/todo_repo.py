@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.profile import Profile, WorkExperience
 from app.models.todo import Todo
 from app.repositories.base import BaseRepository
 
@@ -17,18 +18,14 @@ class TodoRepository(BaseRepository[Todo]):
         )
         return list(result.scalars().all())
 
-    async def get_completed_for_user_companies(self, company_ids: list[UUID]) -> list[Todo]:
-        """Get all completed todos across multiple companies (for reports)."""
+    async def get_by_id_for_user(self, todo_id: UUID, user_id: UUID) -> Todo | None:
         from app.models.project import Project
 
         result = await self.db.execute(
-            select(Todo, Project.name, Project.company_id)
+            select(Todo)
             .join(Project, Todo.project_id == Project.id)
-            .where(
-                Project.company_id.in_(company_ids),
-                Todo.status == "done",
-                Todo.completed_at.isnot(None),
-            )
-            .order_by(Todo.completed_at.desc())
+            .join(WorkExperience, Project.work_experience_id == WorkExperience.id)
+            .join(Profile, WorkExperience.profile_id == Profile.id)
+            .where(Todo.id == todo_id, Profile.user_id == user_id)
         )
-        return list(result.all())
+        return result.scalar_one_or_none()

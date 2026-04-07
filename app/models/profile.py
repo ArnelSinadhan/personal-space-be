@@ -87,6 +87,12 @@ class WorkExperience(Base, UUIDMixin, TimestampMixin):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     profile: Mapped[Profile] = relationship(back_populates="work_experiences")
+    projects: Mapped[list["Project"]] = relationship(  # type: ignore[name-defined] # noqa: F821
+        back_populates="work_experience",
+        cascade="all, delete-orphan",
+        order_by="Project.sort_order",
+        lazy="selectin",
+    )
 
 
 # ---------------------------------------------------------------------------
