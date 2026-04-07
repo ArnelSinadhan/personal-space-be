@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Column, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Column, ForeignKey, Index, Integer, String, Table, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -74,9 +74,12 @@ class Profile(Base, UUIDMixin, TimestampMixin):
 
 class WorkExperience(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "work_experiences"
+    __table_args__ = (
+        Index("ix_work_experiences_profile_current", "profile_id", "is_current"),
+    )
 
     profile_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     company: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -104,7 +107,7 @@ class EducationEntry(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "education_entries"
 
     profile_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     degree: Mapped[str] = mapped_column(String(255), nullable=False)
     school: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -123,7 +126,7 @@ class SocialLink(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "social_links"
 
     profile_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     label: Mapped[str] = mapped_column(String(100), nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
