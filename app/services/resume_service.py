@@ -36,9 +36,12 @@ class ResumeService:
         resume = await self.resume_repo.get_by_user_id(user_id)
 
         if resume is None:
-            resume = Resume(user_id=user_id)
-            self.db.add(resume)
+            new_resume = Resume(user_id=user_id)
+            self.db.add(new_resume)
             await self.db.flush()
+            resume = await self.resume_repo.get_by_user_id(user_id)
+            if resume is None:
+                raise RuntimeError(f"Failed to load resume for user {user_id}")
         else:
             await self.resume_repo.delete_children(resume)
 

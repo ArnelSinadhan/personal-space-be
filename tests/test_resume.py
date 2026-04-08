@@ -79,6 +79,16 @@ async def test_change_template(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_save_resume_with_professional_template(client: AsyncClient):
+    response = await client.put("/api/v1/resume", json={
+        "template": "professional",
+        "personal": {"name": "Template Test"},
+    })
+    assert response.status_code == 200
+    assert response.json()["data"]["template"] == "professional"
+
+
+@pytest.mark.asyncio
 async def test_generate_from_profile(client: AsyncClient):
     # Setup profile data first
     await client.put("/api/v1/profile/personal", json={

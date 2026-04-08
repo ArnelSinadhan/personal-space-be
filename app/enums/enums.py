@@ -13,6 +13,7 @@ class ResumeTemplate(str, enum.Enum):
     CLASSIC = "classic"
     MODERN = "modern"
     MINIMAL = "minimal"
+    PROFESSIONAL = "professional"
 
 
 class ReportPeriod(str, enum.Enum):
