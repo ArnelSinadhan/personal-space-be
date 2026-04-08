@@ -102,7 +102,8 @@ class ResumeService:
             raise ValueError("Resume not found")
         resume.template = data.template.value
         await self.db.flush()
-        return self._to_out(resume)
+        refreshed = await self.resume_repo.get_by_user_id(user_id)
+        return self._to_out(refreshed or resume)
 
     async def generate_from_profile(self, user_id: UUID) -> ResumeOut:
         """Auto-generate resume from profile data (mirrors frontend generateResumeFromProfile)."""

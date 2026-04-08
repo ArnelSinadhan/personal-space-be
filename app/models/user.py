@@ -11,8 +11,8 @@ class User(Base, UUIDMixin, TimestampMixin):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Relationships
-    profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False, lazy="selectin")  # type: ignore[name-defined] # noqa: F821
-    resume: Mapped["Resume"] = relationship(back_populates="user", uselist=False, lazy="selectin")  # type: ignore[name-defined] # noqa: F821
-    vault_pin: Mapped["VaultPin"] = relationship(back_populates="user", uselist=False, lazy="selectin")  # type: ignore[name-defined] # noqa: F821
-    vault_categories: Mapped[list["VaultCategory"]] = relationship(back_populates="user", lazy="selectin")  # type: ignore[name-defined] # noqa: F821
-    vault_entries: Mapped[list["VaultEntry"]] = relationship(back_populates="user", lazy="selectin")  # type: ignore[name-defined] # noqa: F821
+    profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False)  # type: ignore[name-defined] # noqa: F821
+    resume: Mapped["Resume"] = relationship(back_populates="user", uselist=False)  # type: ignore[name-defined] # noqa: F821
+    vault_pin: Mapped["VaultPin"] = relationship(back_populates="user", uselist=False)  # type: ignore[name-defined] # noqa: F821
+    vault_categories: Mapped[list["VaultCategory"]] = relationship(back_populates="user")  # type: ignore[name-defined] # noqa: F821
+    vault_entries: Mapped[list["VaultEntry"]] = relationship(back_populates="user")  # type: ignore[name-defined] # noqa: F821

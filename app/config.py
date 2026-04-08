@@ -12,6 +12,17 @@ class Settings(BaseSettings):
     firebase_service_account_path: str | None = None
     firebase_storage_bucket: str = ""
 
+    # Supabase Storage
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+    supabase_profile_images_bucket: str = "profile-images"
+    supabase_company_images_bucket: str = "company-images"
+    supabase_project_images_bucket: str = "project-images"
+    supabase_resume_files_bucket: str = "resume-files"
+    signed_url_expire_seconds: int = 3600
+    max_image_upload_bytes: int = 5 * 1024 * 1024
+    max_resume_upload_bytes: int = 10 * 1024 * 1024
+
     # Security
     vault_encryption_secret: str = "change-me"
     jwt_secret: str = "change-me"

@@ -22,6 +22,7 @@ from app.schemas.profile import (
     WorkExperienceCreate,
     WorkExperienceOut,
 )
+from app.services.storage_service import StorageService
 
 
 class ProfileService:
@@ -32,24 +33,25 @@ class ProfileService:
         self.edu_repo = EducationRepository(db)
         self.link_repo = SocialLinkRepository(db)
         self.skill_repo = SkillRepository(db)
+        self.storage = StorageService()
 
     async def get_profile(self, user_id: UUID) -> ProfileOut:
         profile = await self.profile_repo.get_or_create(user_id)
-        return self._to_profile_out(profile)
+        return await self._to_profile_out(profile)
 
     async def update_personal(self, user_id: UUID, data: PersonalUpdate) -> ProfileOut:
         profile = await self.profile_repo.get_or_create(user_id)
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(profile, field, value)
         await self.db.flush()
-        return self._to_profile_out(profile)
+        return await self._to_profile_out(profile)
 
     async def update_about(self, user_id: UUID, data: AboutUpdate) -> ProfileOut:
         profile = await self.profile_repo.get_or_create(user_id)
         profile.about = data.about
         profile.skills = await self.skill_repo.get_or_create_many(data.skills)
         await self.db.flush()
-        return self._to_profile_out(profile)
+        return await self._to_profile_out(profile)
 
     # -- Work Experience -----------------------------------------------------
 
@@ -64,7 +66,7 @@ class ProfileService:
         )
         self.db.add(entry)
         await self.db.flush()
-        return WorkExperienceOut.model_validate(entry)
+        return await self._to_work_experience_out(entry)
 
     async def update_work_experience(
         self, entry_id: UUID, data: WorkExperienceCreate
@@ -75,7 +77,7 @@ class ProfileService:
         for field, value in data.model_dump().items():
             setattr(entry, field, value)
         await self.db.flush()
-        return WorkExperienceOut.model_validate(entry)
+        return await self._to_work_experience_out(entry)
 
     async def delete_work_experience(self, entry_id: UUID) -> None:
         entry = await self.work_repo.get_by_id(entry_id)
@@ -125,32 +127,54 @@ class ProfileService:
                 url=link_data.url,
                 sort_order=i,
             )
-            self.db.add(link)
+            profile.social_links.append(link)
         profile.resume_url = data.resume_url
         await self.db.flush()
-        # Reload
-        refreshed = await self.profile_repo.get_by_user_id(user_id)
-        return self._to_profile_out(refreshed or profile)
+        return await self._to_profile_out(profile)
 
     # -- Serialization -------------------------------------------------------
 
-    def _to_profile_out(self, profile: Profile) -> ProfileOut:
+    async def _to_work_experience_out(self, entry: WorkExperience) -> WorkExperienceOut:
+        return WorkExperienceOut(
+            id=entry.id,
+            title=entry.title,
+            company=entry.company,
+            start_date=entry.start_date,
+            end_date=entry.end_date,
+            is_current=entry.is_current,
+            image_url=await self.storage.resolve_company_url(entry.image_url),
+        )
+
+    async def _to_profile_out(self, profile: Profile) -> ProfileOut:
         personal = None
-        if profile.name or profile.email or profile.role:
+        avatar_url = await self.storage.resolve_profile_url(profile.avatar_url)
+        if any(
+            [
+                profile.name,
+                profile.email,
+                profile.phone,
+                profile.address,
+                avatar_url,
+                profile.role,
+            ]
+        ):
             personal = PersonalOut(
                 name=profile.name,
                 email=profile.email,
                 phone=profile.phone,
                 address=profile.address,
-                avatar=profile.avatar_url,
+                avatar=avatar_url,
                 role=profile.role,
             )
         return ProfileOut(
             personal=personal,
             about=profile.about,
             skills=[s.name for s in profile.skills],
-            work_experience=[WorkExperienceOut.model_validate(w) for w in profile.work_experiences],
+            work_experience=[
+                await self._to_work_experience_out(work_experience)
+                for work_experience in profile.work_experiences
+            ],
             education=[EducationOut.model_validate(e) for e in profile.education_entries],
             social_links=[SocialLinkOut.model_validate(l) for l in profile.social_links],
-            resume_url=profile.resume_url,
+            resume_url=await self.storage.resolve_resume_url(profile.resume_url),
         )

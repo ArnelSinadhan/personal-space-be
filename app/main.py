@@ -8,7 +8,7 @@ from sqlalchemy import text
 from app.auth.firebase import init_firebase
 from app.config import settings
 from app.database import engine
-from app.routers import profile, projects, public, reports, resume, vault, workspaces
+from app.routers import dashboard, profile, projects, public, reports, resume, uploads, vault, workspaces
 
 
 @asynccontextmanager
@@ -42,6 +42,8 @@ app.add_middleware(
 # -- Routers -----------------------------------------------------------------
 
 app.include_router(profile.router)
+app.include_router(dashboard.router)
+app.include_router(uploads.router)
 app.include_router(workspaces.router)
 app.include_router(projects.router)
 app.include_router(resume.router)

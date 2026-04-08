@@ -60,6 +60,16 @@ async def create_todo(
         raise HTTPException(status_code=404, detail="Project not found")
 
 
+@router.patch("/todos/bulk-update", response_model=list[TodoOut])
+async def bulk_update_todos(
+    payload: TodoBulkUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProjectService(db)
+    return await service.bulk_update_todos(user.id, payload)
+
+
 @router.patch("/todos/{todo_id}", response_model=TodoOut)
 async def update_todo(
     todo_id: UUID,
@@ -72,16 +82,6 @@ async def update_todo(
         return await service.update_todo(todo_id, user.id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Todo not found")
-
-
-@router.patch("/todos/bulk-update", response_model=list[TodoOut])
-async def bulk_update_todos(
-    payload: TodoBulkUpdate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = ProjectService(db)
-    return await service.bulk_update_todos(user.id, payload)
 
 
 @router.delete("/todos/{todo_id}", response_model=MessageResponse)

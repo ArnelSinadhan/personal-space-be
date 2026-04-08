@@ -14,3 +14,8 @@ class IDResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     db: str
+
+
+class UploadResponse(BaseModel):
+    path: str
+    url: str | None = None

@@ -13,6 +13,7 @@ from app.database import get_db
 from app.models.profile import EducationEntry, Profile, WorkExperience
 from app.models.project import Project
 from app.models.user import User
+from app.services.storage_service import StorageService
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
@@ -28,6 +29,7 @@ async def _get_first_user(db: AsyncSession) -> User:
 
 @router.get("/profile")
 async def public_profile(db: AsyncSession = Depends(get_db)):
+    storage = StorageService()
     user = await _get_first_user(db)
     result = await db.execute(
         select(Profile)
@@ -42,7 +44,7 @@ async def public_profile(db: AsyncSession = Depends(get_db)):
         "data": {
             "name": profile.name,
             "role": profile.role,
-            "avatar": profile.avatar_url,
+            "avatar": await storage.resolve_profile_url(profile.avatar_url),
             "about": profile.about,
             "skills": [s.name for s in profile.skills],
             "social_links": [
@@ -54,6 +56,7 @@ async def public_profile(db: AsyncSession = Depends(get_db)):
 
 @router.get("/work-experience")
 async def public_work_experience(db: AsyncSession = Depends(get_db)):
+    storage = StorageService()
     user = await _get_first_user(db)
     result = await db.execute(
         select(Profile).where(Profile.user_id == user.id).options(
@@ -72,7 +75,7 @@ async def public_work_experience(db: AsyncSession = Depends(get_db)):
                 "start_date": w.start_date,
                 "end_date": w.end_date,
                 "is_current": w.is_current,
-                "image_url": w.image_url,
+                "image_url": await storage.resolve_company_url(w.image_url),
             }
             for w in profile.work_experiences
         ]
@@ -81,6 +84,7 @@ async def public_work_experience(db: AsyncSession = Depends(get_db)):
 
 @router.get("/projects")
 async def public_projects(db: AsyncSession = Depends(get_db)):
+    storage = StorageService()
     user = await _get_first_user(db)
     result = await db.execute(
         select(WorkExperience)
@@ -100,6 +104,7 @@ async def public_projects(db: AsyncSession = Depends(get_db)):
             projects.append({
                 "name": p.name,
                 "description": p.description,
+                "image_url": await storage.resolve_project_url(p.image_url),
                 "company": work_experience.company,
                 "tech_stack": [s.name for s in p.tech_stack],
             })

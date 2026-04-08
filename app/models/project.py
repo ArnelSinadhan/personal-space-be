@@ -29,6 +29,7 @@ class Project(Base, UUIDMixin, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    image_url: Mapped[str | None] = mapped_column(Text)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
