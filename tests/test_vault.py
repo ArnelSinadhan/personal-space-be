@@ -3,6 +3,20 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
+async def test_pin_status(client: AsyncClient):
+    response = await client.get("/api/v1/vault/pin-status")
+    assert response.status_code == 200
+    assert response.json()["has_pin"] is False
+
+    response = await client.post("/api/v1/vault/set-pin", json={"pin": "123456"})
+    assert response.status_code == 200
+
+    response = await client.get("/api/v1/vault/pin-status")
+    assert response.status_code == 200
+    assert response.json()["has_pin"] is True
+
+
+@pytest.mark.asyncio
 async def test_set_and_verify_pin(client: AsyncClient):
     # Set PIN
     response = await client.post("/api/v1/vault/set-pin", json={"pin": "123456"})

@@ -20,6 +20,10 @@ class PinVerifyResponse(BaseModel):
     vault_token: str | None = None
 
 
+class PinStatusResponse(BaseModel):
+    has_pin: bool
+
+
 # ---------------------------------------------------------------------------
 # Categories
 # ---------------------------------------------------------------------------

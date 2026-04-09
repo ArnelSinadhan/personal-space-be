@@ -8,6 +8,7 @@ from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.vault import (
     PinSet,
+    PinStatusResponse,
     PinVerify,
     PinVerifyResponse,
     VaultCategoryCreate,
@@ -25,6 +26,15 @@ router = APIRouter(prefix="/api/v1/vault", tags=["vault"])
 
 
 # -- PIN ---------------------------------------------------------------------
+
+@router.get("/pin-status", response_model=PinStatusResponse)
+async def pin_status(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = VaultService(db)
+    return PinStatusResponse(has_pin=await service.has_pin(user.id))
+
 
 @router.post("/set-pin", response_model=MessageResponse)
 async def set_pin(
