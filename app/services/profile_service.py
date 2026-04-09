@@ -128,7 +128,6 @@ class ProfileService:
                 sort_order=i,
             )
             profile.social_links.append(link)
-        profile.resume_url = data.resume_url
         await self.db.flush()
         return await self._to_profile_out(profile)
 
@@ -176,5 +175,4 @@ class ProfileService:
             ],
             education=[EducationOut.model_validate(e) for e in profile.education_entries],
             social_links=[SocialLinkOut.model_validate(l) for l in profile.social_links],
-            resume_url=await self.storage.resolve_resume_url(profile.resume_url),
         )

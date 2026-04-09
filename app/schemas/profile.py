@@ -100,7 +100,6 @@ class AboutUpdate(BaseModel):
 
 class SocialLinksUpdate(BaseModel):
     links: list[SocialLinkInput] = []
-    resume_url: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +113,6 @@ class ProfileOut(BaseModel):
     work_experience: list[WorkExperienceOut] = []
     education: list[EducationOut] = []
     social_links: list[SocialLinkOut] = []
-    resume_url: str | None = None
 
     # Aliases to match frontend camelCase if needed via serialization_alias
     model_config = {"from_attributes": True}

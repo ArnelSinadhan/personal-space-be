@@ -12,7 +12,7 @@ from app.repositories.project_repo import ProjectRepository
 from app.repositories.todo_repo import TodoRepository
 from app.schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
 from app.schemas.profile import WorkExperienceWorkspaceOut
-from app.schemas.todo import TodoBulkUpdate, TodoCreate, TodoOut, TodoUpdate
+from app.schemas.todo import TodoCreate, TodoOut, TodoUpdate
 from app.services.storage_service import StorageService
 
 
@@ -115,23 +115,6 @@ class ProjectService:
                 todo.completed_at = None
         await self.db.flush()
         return TodoOut.model_validate(todo)
-
-    async def bulk_update_todos(self, user_id: UUID, data: TodoBulkUpdate) -> list[TodoOut]:
-        results: list[TodoOut] = []
-        for item in data.todos:
-            todo = await self.todo_repo.get_by_id_for_user(item.id, user_id)
-            if todo is None:
-                continue
-            old_status = todo.status
-            todo.status = item.status.value
-            todo.sort_order = item.sort_order
-            if item.status == TodoStatus.DONE and old_status != TodoStatus.DONE.value:
-                todo.completed_at = datetime.now(timezone.utc)
-            elif item.status != TodoStatus.DONE and old_status == TodoStatus.DONE.value:
-                todo.completed_at = None
-            results.append(TodoOut.model_validate(todo))
-        await self.db.flush()
-        return results
 
     async def delete_todo(self, todo_id: UUID, user_id: UUID) -> None:
         todo = await self.todo_repo.get_by_id_for_user(todo_id, user_id)

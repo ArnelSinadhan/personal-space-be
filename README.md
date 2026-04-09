@@ -228,16 +228,12 @@ Workspaces and projects:
 - `DELETE /api/v1/projects/{project_id}`
 - `POST /api/v1/projects/{project_id}/todos`
 - `PATCH /api/v1/todos/{todo_id}`
-- `PATCH /api/v1/todos/bulk-update`
 - `DELETE /api/v1/todos/{todo_id}`
 
 Resume:
 
 - `GET /api/v1/resume`
 - `PUT /api/v1/resume`
-- `DELETE /api/v1/resume`
-- `POST /api/v1/resume/generate`
-- `PATCH /api/v1/resume/template`
 
 Vault:
 

@@ -16,17 +16,6 @@ class TodoUpdate(BaseModel):
     status: TodoStatus | None = None
 
 
-class TodoBulkItem(BaseModel):
-    id: UUID
-    status: TodoStatus
-    sort_order: int = 0
-
-
-class TodoBulkUpdate(BaseModel):
-    project_id: UUID
-    todos: list[TodoBulkItem]
-
-
 class TodoOut(BaseModel):
     id: UUID
     title: str

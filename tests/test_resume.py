@@ -61,23 +61,6 @@ async def test_save_and_get_resume(client: AsyncClient):
     assert response.status_code == 200
     assert response.json()["data"] is not None
 
-
-@pytest.mark.asyncio
-async def test_change_template(client: AsyncClient):
-    # Create resume first
-    await client.put("/api/v1/resume", json={
-        "template": "classic",
-        "personal": {"name": "Test"},
-    })
-
-    # Change template
-    response = await client.patch("/api/v1/resume/template", json={
-        "template": "modern",
-    })
-    assert response.status_code == 200
-    assert response.json()["data"]["template"] == "modern"
-
-
 @pytest.mark.asyncio
 async def test_save_resume_with_professional_template(client: AsyncClient):
     response = await client.put("/api/v1/resume", json={
@@ -86,39 +69,3 @@ async def test_save_resume_with_professional_template(client: AsyncClient):
     })
     assert response.status_code == 200
     assert response.json()["data"]["template"] == "professional"
-
-
-@pytest.mark.asyncio
-async def test_generate_from_profile(client: AsyncClient):
-    # Setup profile data first
-    await client.put("/api/v1/profile/personal", json={
-        "name": "Arnel Sinadhan",
-        "role": "Software Engineer",
-        "email": "arnel@example.com",
-    })
-    await client.put("/api/v1/profile/about", json={
-        "about": "Passionate engineer",
-        "skills": ["React", "TypeScript"],
-    })
-
-    # Generate
-    response = await client.post("/api/v1/resume/generate")
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["personal"]["name"] == "Arnel Sinadhan"
-    assert "React" in data["skills"]
-
-
-@pytest.mark.asyncio
-async def test_delete_resume(client: AsyncClient):
-    # Create then delete
-    await client.put("/api/v1/resume", json={
-        "template": "minimal",
-        "personal": {"name": "Delete Me"},
-    })
-    response = await client.delete("/api/v1/resume")
-    assert response.status_code == 200
-
-    # Confirm gone
-    response = await client.get("/api/v1/resume")
-    assert response.json()["data"] is None

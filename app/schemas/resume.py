@@ -102,7 +102,3 @@ class ResumeOut(BaseModel):
 
 class ResumeResponse(BaseModel):
     data: ResumeOut | None
-
-
-class TemplateUpdate(BaseModel):
-    template: ResumeTemplate

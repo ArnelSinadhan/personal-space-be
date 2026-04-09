@@ -4,14 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import ResumeTemplate
 from app.models.resume import Resume, ResumeEducation, ResumeExperience, ResumeLink, ResumeProject
-from app.repositories.profile_repo import ProfileRepository, SkillRepository
+from app.repositories.profile_repo import SkillRepository
 from app.repositories.resume_repo import ResumeRepository
 from app.schemas.resume import (
-    ResumeCreate,
     ResumeOut,
     ResumePersonalInput,
     ResumeUpdate,
-    TemplateUpdate,
     ResumeExperienceOut,
     ResumeEducationOut,
     ResumeProjectOut,
@@ -23,7 +21,6 @@ class ResumeService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.resume_repo = ResumeRepository(db)
-        self.profile_repo = ProfileRepository(db)
         self.skill_repo = SkillRepository(db)
 
     async def get_resume(self, user_id: UUID) -> ResumeOut | None:
@@ -89,59 +86,6 @@ class ResumeService:
         await self.db.flush()
         refreshed = await self.resume_repo.get_by_user_id(user_id)
         return self._to_out(refreshed or resume)
-
-    async def delete_resume(self, user_id: UUID) -> None:
-        resume = await self.resume_repo.get_by_user_id(user_id)
-        if resume is None:
-            raise ValueError("Resume not found")
-        await self.resume_repo.delete(resume)
-
-    async def change_template(self, user_id: UUID, data: TemplateUpdate) -> ResumeOut:
-        resume = await self.resume_repo.get_by_user_id(user_id)
-        if resume is None:
-            raise ValueError("Resume not found")
-        resume.template = data.template.value
-        await self.db.flush()
-        refreshed = await self.resume_repo.get_by_user_id(user_id)
-        return self._to_out(refreshed or resume)
-
-    async def generate_from_profile(self, user_id: UUID) -> ResumeOut:
-        """Auto-generate resume from profile data (mirrors frontend generateResumeFromProfile)."""
-        profile = await self.profile_repo.get_or_create(user_id)
-
-        data = ResumeUpdate(
-            template=ResumeTemplate.CLASSIC,
-            personal=ResumePersonalInput(
-                name=profile.name,
-                role=profile.role,
-                email=profile.email,
-                phone=profile.phone,
-                address=profile.address,
-                summary=profile.about,
-            ),
-            experience=[
-                {
-                    "title": w.title,
-                    "company": w.company,
-                    "start_date": w.start_date,
-                    "end_date": "Present" if w.is_current else (w.end_date or ""),
-                    "is_current": w.is_current,
-                    "description": "",
-                }
-                for w in profile.work_experiences
-            ],
-            education=[
-                {"degree": e.degree, "school": e.school, "years": e.years}
-                for e in profile.education_entries
-            ],
-            skills=[s.name for s in profile.skills],
-            projects=[],
-            links=[
-                {"label": l.label, "url": l.url}
-                for l in profile.social_links
-            ],
-        )
-        return await self.save_resume(user_id, data)
 
     # -- Serialization -------------------------------------------------------
 

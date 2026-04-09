@@ -81,38 +81,3 @@ async def test_project_and_todo_flow(client: AsyncClient):
     # Delete project
     response = await client.delete(f"/api/v1/projects/{project_id}")
     assert response.status_code == 200
-
-
-@pytest.mark.asyncio
-async def test_bulk_update_todos(client: AsyncClient):
-    # Setup: work experience → project → 2 todos
-    resp = await client.post("/api/v1/profile/work-experience", json={
-        "title": "Engineer", "company": "Bulk Co", "start_date": "2024",
-    })
-    work_experience_id = resp.json()["id"]
-
-    resp = await client.post(f"/api/v1/work-experiences/{work_experience_id}/projects", json={
-        "name": "Bulk Project", "tech_stack": [],
-    })
-    project_id = resp.json()["data"]["id"]
-
-    resp1 = await client.post(f"/api/v1/projects/{project_id}/todos", json={
-        "title": "Task A", "status": "todo",
-    })
-    resp2 = await client.post(f"/api/v1/projects/{project_id}/todos", json={
-        "title": "Task B", "status": "todo",
-    })
-    id_a = resp1.json()["id"]
-    id_b = resp2.json()["id"]
-
-    # Bulk update — simulate Kanban drag
-    response = await client.patch("/api/v1/todos/bulk-update", json={
-        "project_id": project_id,
-        "todos": [
-            {"id": id_a, "status": "done", "sort_order": 0},
-            {"id": id_b, "status": "in_progress", "sort_order": 1},
-        ],
-    })
-    assert response.status_code == 200
-    results = response.json()
-    assert len(results) == 2

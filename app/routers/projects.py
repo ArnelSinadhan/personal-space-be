@@ -7,7 +7,7 @@ from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.project import ProjectResponse, ProjectUpdate
-from app.schemas.todo import TodoBulkUpdate, TodoCreate, TodoOut, TodoUpdate
+from app.schemas.todo import TodoCreate, TodoOut, TodoUpdate
 from app.services.project_service import ProjectService
 
 router = APIRouter(prefix="/api/v1", tags=["projects & todos"])
@@ -58,16 +58,6 @@ async def create_todo(
         return await service.create_todo(project_id, user.id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Project not found")
-
-
-@router.patch("/todos/bulk-update", response_model=list[TodoOut])
-async def bulk_update_todos(
-    payload: TodoBulkUpdate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = ProjectService(db)
-    return await service.bulk_update_todos(user.id, payload)
 
 
 @router.patch("/todos/{todo_id}", response_model=TodoOut)
