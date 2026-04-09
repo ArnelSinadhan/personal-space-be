@@ -4,7 +4,7 @@ import mimetypes
 import posixpath
 from pathlib import Path
 from urllib.parse import quote
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import httpx
 
@@ -38,11 +38,10 @@ class StorageService:
         if not extension:
             extension = mimetypes.guess_extension(content_type or "") or ""
 
-        name = uuid4().hex
         segments = [str(owner_id)]
         if related_id is not None:
             segments.append(str(related_id))
-        segments.append(f"{folder}-{name}{extension}")
+        segments.append(f"{folder}{extension}")
         return posixpath.join(*segments)
 
     async def upload_file(
@@ -74,17 +73,106 @@ class StorageService:
         if not path or not self.enabled or self.is_external_url(path):
             return
 
-        delete_url = (
-            f"{self.base_url}/storage/v1/object/{quote(bucket)}/{quote(path, safe='/')}"
-        )
+        await self.delete_files(bucket=bucket, paths=[path])
+
+    async def delete_files(self, *, bucket: str, paths: list[str]) -> None:
+        valid_paths = [
+            path for path in paths if path and not self.is_external_url(path)
+        ]
+        if not valid_paths or not self.enabled:
+            return
+
+        delete_url = f"{self.base_url}/storage/v1/object/{quote(bucket)}"
         headers = {
             "Authorization": f"Bearer {self.service_key}",
             "apikey": self.service_key,
+            "Content-Type": "application/json",
         }
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.delete(delete_url, headers=headers)
+            response = await client.request(
+                "DELETE",
+                delete_url,
+                headers=headers,
+                json={"prefixes": valid_paths},
+            )
             if response.status_code not in {200, 204, 404}:
                 response.raise_for_status()
+
+    async def list_files(self, *, bucket: str, prefix: str) -> list[str]:
+        if not prefix or not self.enabled:
+            return []
+
+        list_url = f"{self.base_url}/storage/v1/object/list/{quote(bucket)}"
+        headers = {
+            "Authorization": f"Bearer {self.service_key}",
+            "apikey": self.service_key,
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "prefix": prefix.rstrip("/") + "/",
+            "limit": 100,
+            "offset": 0,
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(list_url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        files: list[str] = []
+        for item in data:
+            name = item.get("name")
+            if not name or not isinstance(name, str):
+                continue
+            files.append(posixpath.join(prefix, name))
+        return files
+
+    async def list_all_files(self, *, bucket: str, prefix: str) -> list[str]:
+        if not prefix or not self.enabled:
+            return []
+
+        list_url = f"{self.base_url}/storage/v1/object/list/{quote(bucket)}"
+        headers = {
+            "Authorization": f"Bearer {self.service_key}",
+            "apikey": self.service_key,
+            "Content-Type": "application/json",
+        }
+
+        async def walk(current_prefix: str) -> list[str]:
+            payload = {
+                "prefix": current_prefix.rstrip("/") + "/",
+                "limit": 100,
+                "offset": 0,
+            }
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(list_url, headers=headers, json=payload)
+                response.raise_for_status()
+                data = response.json()
+
+            files: list[str] = []
+            for item in data:
+                name = item.get("name")
+                if not name or not isinstance(name, str):
+                    continue
+
+                item_path = posixpath.join(current_prefix, name)
+                is_file = bool(item.get("id")) or item.get("metadata") is not None
+                if is_file:
+                    files.append(item_path)
+                    continue
+
+                files.extend(await walk(item_path))
+            return files
+
+        return await walk(prefix.rstrip("/"))
+
+    async def delete_prefix(self, *, bucket: str, prefix: str | None) -> None:
+        if not prefix or not self.enabled:
+            return
+
+        paths = await self.list_all_files(bucket=bucket, prefix=prefix)
+        await self.delete_files(bucket=bucket, paths=paths)
 
     async def create_signed_url(
         self,

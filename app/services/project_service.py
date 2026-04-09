@@ -47,6 +47,8 @@ class ProjectService:
             name=data.name,
             description=data.description,
             image_url=data.image_url,
+            github_url=data.github_url,
+            live_url=data.live_url,
             is_public=data.is_public,
         )
         project.tech_stack = skills
@@ -67,6 +69,10 @@ class ProjectService:
             project.description = data.description
         if data.image_url is not None:
             project.image_url = data.image_url
+        if data.github_url is not None:
+            project.github_url = data.github_url
+        if data.live_url is not None:
+            project.live_url = data.live_url
         if data.is_public is not None:
             project.is_public = data.is_public
         if data.tech_stack is not None:
@@ -142,6 +148,8 @@ class ProjectService:
             name=project.name,
             description=project.description,
             image_url=await self.storage.resolve_project_url(project.image_url),
+            github_url=project.github_url,
+            live_url=project.live_url,
             tech_stack=[s.name for s in project.tech_stack],
             is_public=project.is_public,
             todos=[TodoOut.model_validate(t) for t in project.todos],

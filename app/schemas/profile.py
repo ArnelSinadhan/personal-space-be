@@ -102,6 +102,10 @@ class SocialLinksUpdate(BaseModel):
     links: list[SocialLinkInput] = []
 
 
+class PublicProfileSettingsUpdate(BaseModel):
+    is_public_profile_enabled: bool
+
+
 # ---------------------------------------------------------------------------
 # Full profile response (matches frontend ProfileData)
 # ---------------------------------------------------------------------------
@@ -113,6 +117,8 @@ class ProfileOut(BaseModel):
     work_experience: list[WorkExperienceOut] = []
     education: list[EducationOut] = []
     social_links: list[SocialLinkOut] = []
+    public_slug: str | None = None
+    is_public_profile_enabled: bool = False
 
     # Aliases to match frontend camelCase if needed via serialization_alias
     model_config = {"from_attributes": True}

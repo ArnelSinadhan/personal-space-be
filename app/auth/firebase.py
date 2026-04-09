@@ -1,7 +1,7 @@
 import json
 
 import firebase_admin
-from firebase_admin import credentials
+from firebase_admin import auth, credentials
 
 from app.config import settings
 
@@ -35,3 +35,11 @@ def get_firebase_app() -> firebase_admin.App:
     if _app is None:
         return init_firebase()
     return _app
+
+
+def delete_firebase_user(uid: str) -> None:
+    auth.delete_user(uid, app=get_firebase_app())
+
+
+def update_firebase_user_password(uid: str, password: str) -> None:
+    auth.update_user(uid, password=password, app=get_firebase_app())

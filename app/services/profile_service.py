@@ -1,8 +1,11 @@
 from uuid import UUID
+import re
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.profile import EducationEntry, Profile, SocialLink, WorkExperience
+from app.models.user import User
 from app.repositories.profile_repo import (
     EducationRepository,
     ProfileRepository,
@@ -16,6 +19,7 @@ from app.schemas.profile import (
     EducationOut,
     PersonalOut,
     PersonalUpdate,
+    PublicProfileSettingsUpdate,
     ProfileOut,
     SocialLinkOut,
     SocialLinksUpdate,
@@ -37,12 +41,14 @@ class ProfileService:
 
     async def get_profile(self, user_id: UUID) -> ProfileOut:
         profile = await self.profile_repo.get_or_create(user_id)
+        await self._ensure_public_slug(profile)
         return await self._to_profile_out(profile)
 
     async def update_personal(self, user_id: UUID, data: PersonalUpdate) -> ProfileOut:
         profile = await self.profile_repo.get_or_create(user_id)
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(profile, field, value)
+        await self._ensure_public_slug(profile)
         await self.db.flush()
         return await self._to_profile_out(profile)
 
@@ -131,6 +137,15 @@ class ProfileService:
         await self.db.flush()
         return await self._to_profile_out(profile)
 
+    async def update_public_profile_settings(
+        self, user_id: UUID, data: PublicProfileSettingsUpdate
+    ) -> ProfileOut:
+        profile = await self.profile_repo.get_or_create(user_id)
+        await self._ensure_public_slug(profile)
+        profile.is_public_profile_enabled = data.is_public_profile_enabled
+        await self.db.flush()
+        return await self._to_profile_out(profile)
+
     # -- Serialization -------------------------------------------------------
 
     async def _to_work_experience_out(self, entry: WorkExperience) -> WorkExperienceOut:
@@ -175,4 +190,42 @@ class ProfileService:
             ],
             education=[EducationOut.model_validate(e) for e in profile.education_entries],
             social_links=[SocialLinkOut.model_validate(l) for l in profile.social_links],
+            public_slug=profile.public_slug,
+            is_public_profile_enabled=profile.is_public_profile_enabled,
         )
+
+    async def _ensure_public_slug(self, profile: Profile) -> None:
+        if profile.public_slug:
+            return
+
+        email = profile.email or await self._get_user_email(profile.user_id)
+        if not email:
+            return
+
+        profile.public_slug = await self._generate_unique_slug(email)
+        await self.db.flush()
+
+    async def _get_user_email(self, user_id: UUID) -> str | None:
+        result = await self.db.execute(
+            select(User.email).where(User.id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def _generate_unique_slug(self, email: str) -> str:
+        local_part = email.split("@", 1)[0].strip().lower()
+        base_slug = re.sub(r"[^a-z0-9]+", "-", local_part).strip("-")
+        if not base_slug:
+            base_slug = "user"
+
+        candidate = base_slug
+        suffix = 2
+        while await self._slug_exists(candidate):
+            candidate = f"{base_slug}-{suffix}"
+            suffix += 1
+        return candidate
+
+    async def _slug_exists(self, slug: str) -> bool:
+        result = await self.db.execute(
+            select(Profile.id).where(Profile.public_slug == slug)
+        )
+        return result.scalar_one_or_none() is not None

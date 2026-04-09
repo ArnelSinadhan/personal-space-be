@@ -1,6 +1,9 @@
 import pytest
 from httpx import AsyncClient
 
+from app.models.user import User
+from app.services.profile_service import ProfileService
+
 
 @pytest.mark.asyncio
 async def test_get_profile_empty(client: AsyncClient):
@@ -10,6 +13,8 @@ async def test_get_profile_empty(client: AsyncClient):
     assert data["skills"] == []
     assert data["work_experience"] == []
     assert data["education"] == []
+    assert data["public_slug"] == "test"
+    assert data["is_public_profile_enabled"] is False
 
 
 @pytest.mark.asyncio
@@ -23,6 +28,7 @@ async def test_update_personal(client: AsyncClient):
     personal = response.json()["data"]["personal"]
     assert personal["name"] == "Arnel Sinadhan"
     assert personal["role"] == "Software Engineer"
+    assert response.json()["data"]["public_slug"] == "arnel"
 
 
 @pytest.mark.asyncio
@@ -35,6 +41,22 @@ async def test_update_about_and_skills(client: AsyncClient):
     data = response.json()["data"]
     assert data["about"] == "Passionate engineer"
     assert set(data["skills"]) == {"React", "TypeScript", "FastAPI"}
+
+
+@pytest.mark.asyncio
+async def test_update_public_profile_settings(client: AsyncClient):
+    await client.put(
+        "/api/v1/profile/personal",
+        json={"email": "public@example.com"},
+    )
+    response = await client.put(
+        "/api/v1/profile/public-settings",
+        json={"is_public_profile_enabled": True},
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["public_slug"] == "public"
+    assert data["is_public_profile_enabled"] is True
 
 
 @pytest.mark.asyncio
@@ -87,9 +109,28 @@ async def test_social_links_update(client: AsyncClient):
             {"label": "GitHub", "url": "https://github.com/arnel"},
             {"label": "LinkedIn", "url": "https://linkedin.com/in/arnel"},
         ],
-        "resume_url": "/resume.pdf",
     })
     assert response.status_code == 200
     data = response.json()["data"]
     assert len(data["social_links"]) == 2
-    assert data["resume_url"] == "/resume.pdf"
+
+
+@pytest.mark.asyncio
+async def test_public_slug_stays_unique_between_users(
+    db_session,
+    test_user: User,
+):
+    second_user = User(
+        firebase_uid="second-user",
+        email="test@other.com",
+    )
+    db_session.add(second_user)
+    await db_session.flush()
+
+    service = ProfileService(db_session)
+
+    first_profile = await service.get_profile(test_user.id)
+    second_profile = await service.get_profile(second_user.id)
+
+    assert first_profile.public_slug == "test"
+    assert second_profile.public_slug == "test-2"

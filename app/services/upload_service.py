@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import posixpath
 from uuid import UUID
 
 from fastapi import UploadFile
@@ -27,6 +28,35 @@ class UploadService:
         self.work_repo = WorkExperienceRepository(db)
         self.project_repo = ProjectRepository(db)
         self.storage = StorageService()
+
+    async def _delete_previous_if_replaced(
+        self,
+        *,
+        bucket: str,
+        previous_path: str | None,
+        current_path: str,
+    ) -> None:
+        if not previous_path or previous_path == current_path:
+            return
+
+        await self.storage.delete_file(
+            bucket=bucket,
+            path=previous_path,
+        )
+
+    async def _cleanup_resource_folder(
+        self,
+        *,
+        bucket: str,
+        current_path: str,
+    ) -> None:
+        prefix = posixpath.dirname(current_path)
+        existing_paths = await self.storage.list_files(
+            bucket=bucket,
+            prefix=prefix,
+        )
+        stale_paths = [path for path in existing_paths if path != current_path]
+        await self.storage.delete_files(bucket=bucket, paths=stale_paths)
 
     async def upload_profile_image(
         self,
@@ -56,9 +86,14 @@ class UploadService:
         )
         profile.avatar_url = path
         await self.db.flush()
-        await self.storage.delete_file(
+        await self._cleanup_resource_folder(
             bucket=settings.supabase_profile_images_bucket,
-            path=previous_path,
+            current_path=path,
+        )
+        await self._delete_previous_if_replaced(
+            bucket=settings.supabase_profile_images_bucket,
+            previous_path=previous_path,
+            current_path=path,
         )
         url = await self.storage.resolve_profile_url(path)
         return path, url
@@ -96,9 +131,14 @@ class UploadService:
         )
         workspace.image_url = path
         await self.db.flush()
-        await self.storage.delete_file(
+        await self._cleanup_resource_folder(
             bucket=settings.supabase_company_images_bucket,
-            path=previous_path,
+            current_path=path,
+        )
+        await self._delete_previous_if_replaced(
+            bucket=settings.supabase_company_images_bucket,
+            previous_path=previous_path,
+            current_path=path,
         )
         url = await self.storage.resolve_company_url(path)
         return path, url
@@ -136,9 +176,14 @@ class UploadService:
         )
         project.image_url = path
         await self.db.flush()
-        await self.storage.delete_file(
+        await self._cleanup_resource_folder(
             bucket=settings.supabase_project_images_bucket,
-            path=previous_path,
+            current_path=path,
+        )
+        await self._delete_previous_if_replaced(
+            bucket=settings.supabase_project_images_bucket,
+            previous_path=previous_path,
+            current_path=path,
         )
         url = await self.storage.resolve_project_url(path)
         return path, url
@@ -171,9 +216,14 @@ class UploadService:
         )
         profile.resume_url = path
         await self.db.flush()
-        await self.storage.delete_file(
+        await self._cleanup_resource_folder(
             bucket=settings.supabase_resume_files_bucket,
-            path=previous_path,
+            current_path=path,
+        )
+        await self._delete_previous_if_replaced(
+            bucket=settings.supabase_resume_files_bucket,
+            previous_path=previous_path,
+            current_path=path,
         )
         url = await self.storage.resolve_resume_url(path)
         return path, url

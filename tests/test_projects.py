@@ -39,13 +39,34 @@ async def test_project_and_todo_flow(client: AsyncClient):
     response = await client.post(f"/api/v1/work-experiences/{work_experience_id}/projects", json={
         "name": "Client Management System",
         "description": "Internal tool",
+        "github_url": "https://github.com/example/cms",
+        "live_url": "https://cms.example.com",
         "tech_stack": ["Next.js", "TypeScript", "FastAPI"],
     })
     assert response.status_code == 201
     project = response.json()["data"]
     project_id = project["id"]
     assert project["name"] == "Client Management System"
+    assert project["github_url"] == "https://github.com/example/cms"
+    assert project["live_url"] == "https://cms.example.com"
     assert "Next.js" in project["tech_stack"]
+
+    response = await client.put(
+        f"/api/v1/projects/{project_id}",
+        json={
+            "name": "Client Management System",
+            "description": "Updated internal tool",
+            "github_url": "https://github.com/example/cms-v2",
+            "live_url": "https://cms-v2.example.com",
+            "tech_stack": ["Next.js", "TypeScript", "FastAPI", "PostgreSQL"],
+            "is_public": True,
+        },
+    )
+    assert response.status_code == 200
+    updated_project = response.json()["data"]
+    assert updated_project["github_url"] == "https://github.com/example/cms-v2"
+    assert updated_project["live_url"] == "https://cms-v2.example.com"
+    assert updated_project["is_public"] is True
 
     # Create todo
     response = await client.post(f"/api/v1/projects/{project_id}/todos", json={

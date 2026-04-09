@@ -52,6 +52,8 @@ class Profile(Base, UUIDMixin, TimestampMixin):
     role: Mapped[str | None] = mapped_column(String(255))
     about: Mapped[str | None] = mapped_column(Text)
     resume_url: Mapped[str | None] = mapped_column(Text)
+    public_slug: Mapped[str | None] = mapped_column(String(100), unique=True)
+    is_public_profile_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="profile")  # type: ignore[name-defined] # noqa: F821

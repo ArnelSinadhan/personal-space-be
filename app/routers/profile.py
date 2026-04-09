@@ -11,6 +11,7 @@ from app.schemas.profile import (
     EducationCreate,
     EducationOut,
     PersonalUpdate,
+    PublicProfileSettingsUpdate,
     ProfileResponse,
     SocialLinksUpdate,
     WorkExperienceCreate,
@@ -31,15 +32,30 @@ async def get_profile(
     return ProfileResponse(data=profile)
 
 
-@router.put("/personal", response_model=ProfileResponse)
-async def update_personal(
-    payload: PersonalUpdate,
+@router.post(
+    "/education", response_model=EducationOut, status_code=status.HTTP_201_CREATED
+)
+async def add_education(
+    payload: EducationCreate,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ProfileService(db)
-    profile = await service.update_personal(user.id, payload)
-    return ProfileResponse(data=profile)
+    return await service.add_education(user.id, payload)
+
+
+@router.post(
+    "/work-experience",
+    response_model=WorkExperienceOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_work_experience(
+    payload: WorkExperienceCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProfileService(db)
+    return await service.add_work_experience(user.id, payload)
 
 
 @router.put("/about", response_model=ProfileResponse)
@@ -51,58 +67,6 @@ async def update_about(
     service = ProfileService(db)
     profile = await service.update_about(user.id, payload)
     return ProfileResponse(data=profile)
-
-
-# -- Work Experience ---------------------------------------------------------
-
-@router.post("/work-experience", response_model=WorkExperienceOut, status_code=status.HTTP_201_CREATED)
-async def add_work_experience(
-    payload: WorkExperienceCreate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = ProfileService(db)
-    return await service.add_work_experience(user.id, payload)
-
-
-@router.put("/work-experience/{entry_id}", response_model=WorkExperienceOut)
-async def update_work_experience(
-    entry_id: UUID,
-    payload: WorkExperienceCreate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = ProfileService(db)
-    try:
-        return await service.update_work_experience(entry_id, payload)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Work experience not found")
-
-
-@router.delete("/work-experience/{entry_id}", response_model=MessageResponse)
-async def delete_work_experience(
-    entry_id: UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = ProfileService(db)
-    try:
-        await service.delete_work_experience(entry_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Work experience not found")
-    return MessageResponse(message="Deleted")
-
-
-# -- Education ---------------------------------------------------------------
-
-@router.post("/education", response_model=EducationOut, status_code=status.HTTP_201_CREATED)
-async def add_education(
-    payload: EducationCreate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = ProfileService(db)
-    return await service.add_education(user.id, payload)
 
 
 @router.put("/education/{entry_id}", response_model=EducationOut)
@@ -119,6 +83,53 @@ async def update_education(
         raise HTTPException(status_code=404, detail="Education entry not found")
 
 
+@router.put("/personal", response_model=ProfileResponse)
+async def update_personal(
+    payload: PersonalUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProfileService(db)
+    profile = await service.update_personal(user.id, payload)
+    return ProfileResponse(data=profile)
+
+
+@router.put("/public-settings", response_model=ProfileResponse)
+async def update_public_profile_settings(
+    payload: PublicProfileSettingsUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProfileService(db)
+    profile = await service.update_public_profile_settings(user.id, payload)
+    return ProfileResponse(data=profile)
+
+
+@router.put("/social-links", response_model=ProfileResponse)
+async def update_social_links(
+    payload: SocialLinksUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProfileService(db)
+    profile = await service.update_social_links(user.id, payload)
+    return ProfileResponse(data=profile)
+
+
+@router.put("/work-experience/{entry_id}", response_model=WorkExperienceOut)
+async def update_work_experience(
+    entry_id: UUID,
+    payload: WorkExperienceCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProfileService(db)
+    try:
+        return await service.update_work_experience(entry_id, payload)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Work experience not found")
+
+
 @router.delete("/education/{entry_id}", response_model=MessageResponse)
 async def delete_education(
     entry_id: UUID,
@@ -133,14 +144,15 @@ async def delete_education(
     return MessageResponse(message="Deleted")
 
 
-# -- Social Links ------------------------------------------------------------
-
-@router.put("/social-links", response_model=ProfileResponse)
-async def update_social_links(
-    payload: SocialLinksUpdate,
+@router.delete("/work-experience/{entry_id}", response_model=MessageResponse)
+async def delete_work_experience(
+    entry_id: UUID,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ProfileService(db)
-    profile = await service.update_social_links(user.id, payload)
-    return ProfileResponse(data=profile)
+    try:
+        await service.delete_work_experience(entry_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Work experience not found")
+    return MessageResponse(message="Deleted")
