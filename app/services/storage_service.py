@@ -66,7 +66,18 @@ class StorageService:
         }
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(upload_url, headers=headers, content=content)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                detail = ""
+                try:
+                    detail = exc.response.json().get("message", "")
+                except Exception:
+                    pass
+                raise RuntimeError(
+                    f"Storage upload failed ({exc.response.status_code})"
+                    + (f": {detail}" if detail else "")
+                ) from exc
         return path
 
     async def delete_file(self, *, bucket: str, path: str | None) -> None:
