@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.repositories.profile_repo import ProfileRepository, WorkExperienceRepository
+from app.repositories.profile_repo import CertificationRepository
 from app.repositories.project_repo import PersonalProjectRepository, ProjectRepository
 from app.services.storage_service import StorageService
 
@@ -26,6 +27,7 @@ class UploadService:
         self.db = db
         self.profile_repo = ProfileRepository(db)
         self.work_repo = WorkExperienceRepository(db)
+        self.certification_repo = CertificationRepository(db)
         self.project_repo = ProjectRepository(db)
         self.personal_project_repo = PersonalProjectRepository(db)
         self.storage = StorageService()
@@ -142,6 +144,53 @@ class UploadService:
             current_path=path,
         )
         url = await self.storage.resolve_company_url(path)
+        return path, url
+
+    async def upload_certification_image(
+        self,
+        *,
+        user_id: UUID,
+        certification_id: UUID,
+        file: UploadFile,
+    ) -> tuple[str, str | None]:
+        content = await self._read_and_validate(
+            file=file,
+            allowed_content_types=self.IMAGE_CONTENT_TYPES,
+            max_bytes=settings.max_image_upload_bytes,
+            label="certification image",
+        )
+        certification = await self.certification_repo.get_by_id_for_user(
+            certification_id, user_id
+        )
+        if certification is None:
+            raise ValueError("Certification not found")
+
+        previous_path = certification.image_url
+        path = self.storage.build_object_path(
+            owner_id=user_id,
+            related_id=certification_id,
+            folder="certification",
+            filename=file.filename,
+            content_type=file.content_type,
+        )
+        await self.storage.upload_file(
+            bucket=settings.supabase_certification_images_bucket,
+            path=path,
+            content=content,
+            content_type=file.content_type or "application/octet-stream",
+        )
+        certification.image_url = path
+        await self.db.flush()
+        await self._cleanup_resource_folder(
+            bucket=settings.supabase_certification_images_bucket,
+            current_path=path,
+        )
+        await self._delete_previous_if_replaced(
+            bucket=settings.supabase_certification_images_bucket,
+            previous_path=previous_path,
+            current_path=path,
+        )
+        url = await self.storage.resolve_certification_url(path)
         return path, url
 
     async def upload_project_image(

@@ -4,9 +4,16 @@ import re
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.profile import EducationEntry, Profile, SocialLink, WorkExperience
+from app.models.profile import (
+    CertificationEntry,
+    EducationEntry,
+    Profile,
+    SocialLink,
+    WorkExperience,
+)
 from app.models.user import User
 from app.repositories.profile_repo import (
+    CertificationRepository,
     EducationRepository,
     ProfileRepository,
     SkillRepository,
@@ -15,6 +22,8 @@ from app.repositories.profile_repo import (
 )
 from app.schemas.profile import (
     AboutUpdate,
+    CertificationCreate,
+    CertificationOut,
     EducationCreate,
     EducationOut,
     PersonalOut,
@@ -35,6 +44,7 @@ class ProfileService:
         self.profile_repo = ProfileRepository(db)
         self.work_repo = WorkExperienceRepository(db)
         self.edu_repo = EducationRepository(db)
+        self.cert_repo = CertificationRepository(db)
         self.link_repo = SocialLinkRepository(db)
         self.skill_repo = SkillRepository(db)
         self.storage = StorageService()
@@ -119,6 +129,38 @@ class ProfileService:
             raise ValueError("Education entry not found")
         await self.edu_repo.delete(entry)
 
+    # -- Certifications -----------------------------------------------------
+
+    async def add_certification(
+        self, user_id: UUID, data: CertificationCreate
+    ) -> CertificationOut:
+        profile = await self.profile_repo.get_or_create(user_id)
+        entry = CertificationEntry(
+            profile_id=profile.id,
+            sort_order=len(profile.certifications),
+            **data.model_dump(),
+        )
+        self.db.add(entry)
+        await self.db.flush()
+        return await self._to_certification_out(entry)
+
+    async def update_certification(
+        self, entry_id: UUID, data: CertificationCreate
+    ) -> CertificationOut:
+        entry = await self.cert_repo.get_by_id(entry_id)
+        if entry is None:
+            raise ValueError("Certification entry not found")
+        for field, value in data.model_dump().items():
+            setattr(entry, field, value)
+        await self.db.flush()
+        return await self._to_certification_out(entry)
+
+    async def delete_certification(self, entry_id: UUID) -> None:
+        entry = await self.cert_repo.get_by_id(entry_id)
+        if entry is None:
+            raise ValueError("Certification entry not found")
+        await self.cert_repo.delete(entry)
+
     # -- Social Links --------------------------------------------------------
 
     async def update_social_links(self, user_id: UUID, data: SocialLinksUpdate) -> ProfileOut:
@@ -159,6 +201,21 @@ class ProfileService:
             image_url=await self.storage.resolve_company_url(entry.image_url),
         )
 
+    async def _to_certification_out(
+        self, entry: CertificationEntry
+    ) -> CertificationOut:
+        return CertificationOut(
+            id=entry.id,
+            name=entry.name,
+            issuer=entry.issuer,
+            issued_at=entry.issued_at,
+            expires_at=entry.expires_at,
+            credential_id=entry.credential_id,
+            credential_url=entry.credential_url,
+            image_url=await self.storage.resolve_certification_url(entry.image_url),
+            is_public=entry.is_public,
+        )
+
     async def _to_profile_out(self, profile: Profile) -> ProfileOut:
         personal = None
         avatar_url = await self.storage.resolve_profile_url(profile.avatar_url)
@@ -189,6 +246,10 @@ class ProfileService:
                 for work_experience in profile.work_experiences
             ],
             education=[EducationOut.model_validate(e) for e in profile.education_entries],
+            certifications=[
+                await self._to_certification_out(certification)
+                for certification in profile.certifications
+            ],
             social_links=[SocialLinkOut.model_validate(l) for l in profile.social_links],
             public_slug=profile.public_slug,
             is_public_profile_enabled=profile.is_public_profile_enabled,

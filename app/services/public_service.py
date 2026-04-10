@@ -20,6 +20,7 @@ from app.models.project import (
 )
 from app.schemas.public import (
     PortfolioViewCreate,
+    PublicCertificationOut,
     PublicEducationOut,
     PublicPersonalProjectOut,
     PublicPortfolioOut,
@@ -65,6 +66,7 @@ class PublicPortfolioService:
                 selectinload(Profile.skills),
                 selectinload(Profile.social_links),
                 selectinload(Profile.education_entries),
+                selectinload(Profile.certifications),
                 selectinload(Profile.work_experiences)
                 .selectinload(WorkExperience.projects)
                 .selectinload(Project.tech_stack),
@@ -139,6 +141,21 @@ class PublicPortfolioService:
                     years=education.years,
                 )
                 for education in hydrated_profile.education_entries
+            ],
+            certifications=[
+                PublicCertificationOut(
+                    name=certification.name,
+                    issuer=certification.issuer,
+                    issued_at=certification.issued_at,
+                    expires_at=certification.expires_at,
+                    credential_id=certification.credential_id,
+                    credential_url=certification.credential_url,
+                    image_url=await self.storage.resolve_certification_url(
+                        certification.image_url
+                    ),
+                )
+                for certification in hydrated_profile.certifications
+                if certification.is_public
             ],
             stats=PublicPortfolioStatsOut(
                 company_count=len(hydrated_profile.work_experiences),

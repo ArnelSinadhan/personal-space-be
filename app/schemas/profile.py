@@ -50,6 +50,26 @@ class EducationOut(EducationCreate):
     model_config = {"from_attributes": True}
 
 
+class CertificationCreate(BaseModel):
+    name: str = Field(..., max_length=255)
+    issuer: str = Field(..., max_length=255)
+    issued_at: str = Field(..., max_length=100)
+    expires_at: str | None = None
+    credential_id: str | None = Field(None, max_length=255)
+    credential_url: str | None = None
+    image_url: str | None = None
+    is_public: bool = False
+
+
+class CertificationUpdate(CertificationCreate):
+    pass
+
+
+class CertificationOut(CertificationCreate):
+    id: UUID
+    model_config = {"from_attributes": True}
+
+
 class SocialLinkOut(BaseModel):
     id: UUID
     label: str
@@ -116,6 +136,7 @@ class ProfileOut(BaseModel):
     skills: list[str] = []
     work_experience: list[WorkExperienceOut] = []
     education: list[EducationOut] = []
+    certifications: list[CertificationOut] = []
     social_links: list[SocialLinkOut] = []
     public_slug: str | None = None
     is_public_profile_enabled: bool = False

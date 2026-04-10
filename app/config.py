@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: str | None = None
     supabase_profile_images_bucket: str = "profile-images"
     supabase_company_images_bucket: str = "company-images"
+    supabase_certification_images_bucket: str = "certification-images"
     supabase_project_images_bucket: str = "project-images"
     supabase_resume_files_bucket: str = "resume-files"
     signed_url_expire_seconds: int = 3600

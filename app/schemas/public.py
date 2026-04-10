@@ -49,6 +49,16 @@ class PublicEducationOut(BaseModel):
     years: str
 
 
+class PublicCertificationOut(BaseModel):
+    name: str
+    issuer: str
+    issued_at: str
+    expires_at: str | None = None
+    credential_id: str | None = None
+    credential_url: str | None = None
+    image_url: str | None = None
+
+
 class PublicProfileOut(BaseModel):
     name: str | None = None
     role: str | None = None
@@ -70,6 +80,7 @@ class PublicPortfolioOut(BaseModel):
     work_experience: list[PublicWorkExperienceOut] = []
     personal_projects: list[PublicPersonalProjectOut] = []
     education: list[PublicEducationOut] = []
+    certifications: list[PublicCertificationOut] = []
     stats: PublicPortfolioStatsOut
 
 

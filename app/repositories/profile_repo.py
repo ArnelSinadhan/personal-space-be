@@ -4,7 +4,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.profile import EducationEntry, Profile, Skill, SocialLink, WorkExperience
+from app.models.profile import (
+    CertificationEntry,
+    EducationEntry,
+    Profile,
+    Skill,
+    SocialLink,
+    WorkExperience,
+)
 from app.models.project import PersonalProject, Project
 from app.repositories.base import BaseRepository
 
@@ -20,6 +27,7 @@ class ProfileRepository(BaseRepository[Profile]):
             .options(
                 selectinload(Profile.work_experiences),
                 selectinload(Profile.education_entries),
+                selectinload(Profile.certifications),
                 selectinload(Profile.social_links),
                 selectinload(Profile.skills),
                 selectinload(Profile.personal_projects).selectinload(PersonalProject.tech_stack),
@@ -73,6 +81,21 @@ class WorkExperienceRepository(BaseRepository[WorkExperience]):
 class EducationRepository(BaseRepository[EducationEntry]):
     def __init__(self, db: AsyncSession):
         super().__init__(EducationEntry, db)
+
+
+class CertificationRepository(BaseRepository[CertificationEntry]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(CertificationEntry, db)
+
+    async def get_by_id_for_user(
+        self, entry_id: UUID, user_id: UUID
+    ) -> CertificationEntry | None:
+        result = await self.db.execute(
+            select(CertificationEntry)
+            .join(Profile, CertificationEntry.profile_id == Profile.id)
+            .where(CertificationEntry.id == entry_id, Profile.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
 
 
 class SocialLinkRepository(BaseRepository[SocialLink]):

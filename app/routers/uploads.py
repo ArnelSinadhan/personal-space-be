@@ -49,6 +49,32 @@ async def upload_company_image(
     return UploadResponse(path=path, url=url)
 
 
+@router.post(
+    "/certification-image",
+    response_model=UploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_certification_image(
+    certification_id: UUID = Form(...),
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = UploadService(db)
+    try:
+        path, url = await service.upload_certification_image(
+            user_id=user.id,
+            certification_id=certification_id,
+            file=file,
+        )
+    except ValueError as exc:
+        status_code = 404 if str(exc) == "Certification not found" else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return UploadResponse(path=path, url=url)
+
+
 @router.post("/project-image", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_project_image(
     project_id: UUID = Form(...),

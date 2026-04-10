@@ -63,6 +63,12 @@ class Profile(Base, UUIDMixin, TimestampMixin):
     education_entries: Mapped[list[EducationEntry]] = relationship(
         back_populates="profile", cascade="all, delete-orphan", order_by="EducationEntry.sort_order", lazy="selectin"
     )
+    certifications: Mapped[list["CertificationEntry"]] = relationship(  # type: ignore[name-defined] # noqa: F821
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        order_by="CertificationEntry.sort_order",
+        lazy="selectin",
+    )
     social_links: Mapped[list[SocialLink]] = relationship(
         back_populates="profile", cascade="all, delete-orphan", order_by="SocialLink.sort_order", lazy="selectin"
     )
@@ -123,6 +129,30 @@ class EducationEntry(Base, UUIDMixin, TimestampMixin):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     profile: Mapped[Profile] = relationship(back_populates="education_entries")
+
+
+# ---------------------------------------------------------------------------
+# Certifications
+# ---------------------------------------------------------------------------
+
+
+class CertificationEntry(Base, UUIDMixin, TimestampMixin):
+    __tablename__ = "certification_entries"
+
+    profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    issuer: Mapped[str] = mapped_column(String(255), nullable=False)
+    issued_at: Mapped[str] = mapped_column(String(100), nullable=False)
+    expires_at: Mapped[str | None] = mapped_column(String(100))
+    credential_id: Mapped[str | None] = mapped_column(String(255))
+    credential_url: Mapped[str | None] = mapped_column(Text)
+    image_url: Mapped[str | None] = mapped_column(Text)
+    is_public: Mapped[bool] = mapped_column(default=False, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    profile: Mapped[Profile] = relationship(back_populates="certifications")
 
 
 # ---------------------------------------------------------------------------

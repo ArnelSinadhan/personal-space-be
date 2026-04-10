@@ -46,6 +46,17 @@ async def test_public_portfolio_returns_aggregated_data(
             "years": "2018 - 2022",
         },
     )
+    await client.post(
+        "/api/v1/profile/certifications",
+        json={
+            "name": "AWS Certified Cloud Practitioner",
+            "issuer": "Amazon Web Services",
+            "issued_at": "2026-03-15",
+            "credential_id": "AWS-123456",
+            "credential_url": "https://www.credly.com/badges/example",
+            "is_public": True,
+        },
+    )
     work_experience = await client.post(
         "/api/v1/profile/work-experience",
         json={
@@ -90,6 +101,7 @@ async def test_public_portfolio_returns_aggregated_data(
     assert data["profile"]["role"] == "Full Stack Developer"
     assert len(data["profile"]["social_links"]) == 2
     assert len(data["education"]) == 1
+    assert len(data["certifications"]) == 1
     assert len(data["work_experience"]) == 1
     assert len(data["work_experience"][0]["projects"]) == 1
     assert len(data["personal_projects"]) == 1
@@ -106,6 +118,7 @@ async def test_public_portfolio_returns_aggregated_data(
         == "https://github.com/example/personal-finance-tracker"
     )
     assert data["personal_projects"][0]["is_featured"] is True
+    assert data["certifications"][0]["issuer"] == "Amazon Web Services"
     assert data["stats"]["public_project_count"] == 2
     assert data["stats"]["company_count"] == 1
 

@@ -8,6 +8,8 @@ from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.profile import (
     AboutUpdate,
+    CertificationCreate,
+    CertificationOut,
     EducationCreate,
     EducationOut,
     PersonalUpdate,
@@ -42,6 +44,18 @@ async def add_education(
 ):
     service = ProfileService(db)
     return await service.add_education(user.id, payload)
+
+
+@router.post(
+    "/certifications", response_model=CertificationOut, status_code=status.HTTP_201_CREATED
+)
+async def add_certification(
+    payload: CertificationCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProfileService(db)
+    return await service.add_certification(user.id, payload)
 
 
 @router.post(
@@ -81,6 +95,20 @@ async def update_education(
         return await service.update_education(entry_id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Education entry not found")
+
+
+@router.put("/certifications/{entry_id}", response_model=CertificationOut)
+async def update_certification(
+    entry_id: UUID,
+    payload: CertificationCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProfileService(db)
+    try:
+        return await service.update_certification(entry_id, payload)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Certification entry not found")
 
 
 @router.put("/personal", response_model=ProfileResponse)
@@ -141,6 +169,20 @@ async def delete_education(
         await service.delete_education(entry_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Education entry not found")
+    return MessageResponse(message="Deleted")
+
+
+@router.delete("/certifications/{entry_id}", response_model=MessageResponse)
+async def delete_certification(
+    entry_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProfileService(db)
+    try:
+        await service.delete_certification(entry_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Certification entry not found")
     return MessageResponse(message="Deleted")
 
 

@@ -13,6 +13,7 @@ async def test_get_profile_empty(client: AsyncClient):
     assert data["skills"] == []
     assert data["work_experience"] == []
     assert data["education"] == []
+    assert data["certifications"] == []
     assert data["public_slug"] == "test"
     assert data["is_public_profile_enabled"] is False
 
@@ -100,6 +101,48 @@ async def test_education_crud(client: AsyncClient):
     # Delete
     response = await client.delete(f"/api/v1/profile/education/{entry_id}")
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_certification_crud(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/profile/certifications",
+        json={
+            "name": "AWS Certified Cloud Practitioner",
+            "issuer": "Amazon Web Services",
+            "issued_at": "2026-03-15",
+            "expires_at": "2029-03-15",
+            "credential_id": "AWS-123456",
+            "credential_url": "https://www.credly.com/badges/example",
+            "is_public": True,
+        },
+    )
+    assert response.status_code == 201
+    entry_id = response.json()["id"]
+    assert response.json()["issuer"] == "Amazon Web Services"
+
+    update_response = await client.put(
+        f"/api/v1/profile/certifications/{entry_id}",
+        json={
+            "name": "AWS Certified Cloud Practitioner",
+            "issuer": "AWS",
+            "issued_at": "2026-03-15",
+            "expires_at": "2029-03-15",
+            "credential_id": "AWS-654321",
+            "credential_url": "https://www.credly.com/badges/example-2",
+            "is_public": False,
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["issuer"] == "AWS"
+    assert update_response.json()["is_public"] is False
+
+    profile_response = await client.get("/api/v1/profile")
+    assert profile_response.status_code == 200
+    assert len(profile_response.json()["data"]["certifications"]) == 1
+
+    delete_response = await client.delete(f"/api/v1/profile/certifications/{entry_id}")
+    assert delete_response.status_code == 200
 
 
 @pytest.mark.asyncio

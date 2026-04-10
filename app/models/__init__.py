@@ -1,7 +1,14 @@
 # Import all models here so Alembic can discover them via Base.metadata
 from app.models.base import Base
 from app.models.portfolio import PortfolioView
-from app.models.profile import EducationEntry, Profile, Skill, SocialLink, WorkExperience
+from app.models.profile import (
+    CertificationEntry,
+    EducationEntry,
+    Profile,
+    Skill,
+    SocialLink,
+    WorkExperience,
+)
 from app.models.project import (
     PersonalProject,
     Project,
@@ -15,6 +22,7 @@ from app.models.vault import VaultCategory, VaultEntry, VaultPin
 
 __all__ = [
     "Base",
+    "CertificationEntry",
     "EducationEntry",
     "PortfolioView",
     "PersonalProject",

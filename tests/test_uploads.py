@@ -193,6 +193,56 @@ async def test_upload_company_image_updates_workspace(
 
 
 @pytest.mark.asyncio
+async def test_upload_certification_image_updates_profile(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    async def fake_upload_file(self, *, bucket: str, path: str, content: bytes, content_type: str):
+        return path
+
+    async def fake_delete_file(self, *, bucket: str, path: str | None):
+        return None
+
+    async def fake_delete_files(self, *, bucket: str, paths: list[str]):
+        return None
+
+    async def fake_list_files(self, *, bucket: str, prefix: str):
+        return []
+
+    async def fake_resolve_certification_url(self, path: str | None):
+        return f"https://signed.example/{path}" if path else None
+
+    monkeypatch.setattr(StorageService, "upload_file", fake_upload_file)
+    monkeypatch.setattr(StorageService, "delete_file", fake_delete_file)
+    monkeypatch.setattr(StorageService, "delete_files", fake_delete_files)
+    monkeypatch.setattr(StorageService, "list_files", fake_list_files)
+    monkeypatch.setattr(StorageService, "resolve_certification_url", fake_resolve_certification_url)
+
+    certification = await client.post(
+        "/api/v1/profile/certifications",
+        json={
+            "name": "AWS Certified Cloud Practitioner",
+            "issuer": "Amazon Web Services",
+            "issued_at": "2026-03-15",
+            "is_public": True,
+        },
+    )
+    certification_id = certification.json()["id"]
+
+    response = await client.post(
+        "/api/v1/uploads/certification-image",
+        data={"certification_id": certification_id},
+        files={"file": ("certificate.png", b"certificate-bytes", "image/png")},
+    )
+    assert response.status_code == 201
+    upload_data = response.json()
+
+    profile_response = await client.get("/api/v1/profile")
+    assert profile_response.status_code == 200
+    assert profile_response.json()["data"]["certifications"][0]["image_url"] == upload_data["url"]
+
+
+@pytest.mark.asyncio
 async def test_upload_resume_updates_profile(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,

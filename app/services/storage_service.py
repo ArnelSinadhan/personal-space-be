@@ -222,6 +222,12 @@ class StorageService:
             path=path,
         )
 
+    async def resolve_certification_url(self, path: str | None) -> str | None:
+        return await self.create_signed_url(
+            bucket=settings.supabase_certification_images_bucket,
+            path=path,
+        )
+
     async def resolve_project_url(self, path: str | None) -> str | None:
         return await self.create_signed_url(
             bucket=settings.supabase_project_images_bucket,
