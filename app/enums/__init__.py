@@ -1,3 +1,8 @@
-from app.enums.enums import ReportPeriod, ResumeTemplate, TodoStatus
+from app.enums.enums import (
+    ProjectTestimonialStatus,
+    ReportPeriod,
+    ResumeTemplate,
+    TodoStatus,
+)
 
-__all__ = ["TodoStatus", "ResumeTemplate", "ReportPeriod"]
+__all__ = ["TodoStatus", "ResumeTemplate", "ReportPeriod", "ProjectTestimonialStatus"]

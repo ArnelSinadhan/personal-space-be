@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.repositories.profile_repo import ProfileRepository, WorkExperienceRepository
-from app.repositories.project_repo import ProjectRepository
+from app.repositories.project_repo import PersonalProjectRepository, ProjectRepository
 from app.services.storage_service import StorageService
 
 
@@ -27,6 +27,7 @@ class UploadService:
         self.profile_repo = ProfileRepository(db)
         self.work_repo = WorkExperienceRepository(db)
         self.project_repo = ProjectRepository(db)
+        self.personal_project_repo = PersonalProjectRepository(db)
         self.storage = StorageService()
 
     async def _delete_previous_if_replaced(
@@ -165,6 +166,53 @@ class UploadService:
             owner_id=user_id,
             related_id=project_id,
             folder="project",
+            filename=file.filename,
+            content_type=file.content_type,
+        )
+        await self.storage.upload_file(
+            bucket=settings.supabase_project_images_bucket,
+            path=path,
+            content=content,
+            content_type=file.content_type or "application/octet-stream",
+        )
+        project.image_url = path
+        await self.db.flush()
+        await self._cleanup_resource_folder(
+            bucket=settings.supabase_project_images_bucket,
+            current_path=path,
+        )
+        await self._delete_previous_if_replaced(
+            bucket=settings.supabase_project_images_bucket,
+            previous_path=previous_path,
+            current_path=path,
+        )
+        url = await self.storage.resolve_project_url(path)
+        return path, url
+
+    async def upload_personal_project_image(
+        self,
+        *,
+        user_id: UUID,
+        personal_project_id: UUID,
+        file: UploadFile,
+    ) -> tuple[str, str | None]:
+        content = await self._read_and_validate(
+            file=file,
+            allowed_content_types=self.IMAGE_CONTENT_TYPES,
+            max_bytes=settings.max_image_upload_bytes,
+            label="personal project image",
+        )
+        project = await self.personal_project_repo.get_by_id_for_user(
+            personal_project_id, user_id
+        )
+        if project is None:
+            raise ValueError("Personal project not found")
+
+        previous_path = project.image_url
+        path = self.storage.build_object_path(
+            owner_id=user_id,
+            related_id=personal_project_id,
+            folder="personal-project",
             filename=file.filename,
             content_type=file.content_type,
         )

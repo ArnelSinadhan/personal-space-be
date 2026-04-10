@@ -102,3 +102,109 @@ async def test_project_and_todo_flow(client: AsyncClient):
     # Delete project
     response = await client.delete(f"/api/v1/projects/{project_id}")
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_project_testimonial_owner_can_approve_and_delete(client: AsyncClient):
+    workspace = await client.post(
+        "/api/v1/profile/work-experience",
+        json={
+            "title": "Engineer",
+            "company": "Test Co",
+            "start_date": "2024",
+        },
+    )
+    work_experience_id = workspace.json()["id"]
+
+    project_response = await client.post(
+        f"/api/v1/work-experiences/{work_experience_id}/projects",
+        json={
+            "name": "Client Portal",
+            "description": "Portal",
+            "tech_stack": ["Next.js"],
+            "is_public": True,
+        },
+    )
+    project_id = project_response.json()["data"]["id"]
+
+    submit_response = await client.post(
+        f"/api/v1/public/portfolio/test/projects/{project_id}/testimonial",
+        json={
+            "name": "Jane Reviewer",
+            "role": "Product Manager",
+            "message": "Arnel shipped the portal reliably, communicated clearly, and delivered polished product work end to end.",
+        },
+    )
+    assert submit_response.status_code == 404
+
+    await client.put(
+        "/api/v1/profile/personal",
+        json={"email": "test@example.com"},
+    )
+    await client.put(
+        "/api/v1/profile/public-settings",
+        json={"is_public_profile_enabled": True},
+    )
+    profile_response = await client.get("/api/v1/profile")
+    slug = profile_response.json()["data"]["public_slug"]
+
+    submit_response = await client.post(
+        f"/api/v1/public/portfolio/{slug}/projects/{project_id}/testimonial",
+        json={
+            "name": "Jane Reviewer",
+            "role": "Product Manager",
+            "message": "Arnel shipped the portal reliably, communicated clearly, and delivered polished product work end to end.",
+        },
+    )
+    assert submit_response.status_code == 201
+
+    approve_response = await client.put(
+        f"/api/v1/projects/{project_id}/testimonial",
+        json={"status": "approved"},
+    )
+    assert approve_response.status_code == 200
+    assert approve_response.json()["data"]["testimonial"]["status"] == "approved"
+
+    delete_response = await client.delete(f"/api/v1/projects/{project_id}/testimonial")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["data"]["testimonial"] is None
+
+
+@pytest.mark.asyncio
+async def test_personal_project_crud_flow(client: AsyncClient):
+    create_response = await client.post(
+        "/api/v1/personal-projects",
+        json={
+            "name": "Budget Tracker",
+            "description": "A personal budgeting app.",
+            "github_url": "https://github.com/example/budget-tracker",
+            "live_url": "https://budget.example.com",
+            "tech_stack": ["Next.js", "TypeScript"],
+            "is_public": True,
+            "is_featured": True,
+        },
+    )
+    assert create_response.status_code == 201
+    project = create_response.json()["data"]
+    project_id = project["id"]
+    assert project["is_featured"] is True
+
+    list_response = await client.get("/api/v1/personal-projects")
+    assert list_response.status_code == 200
+    assert any(item["id"] == project_id for item in list_response.json()["data"])
+
+    update_response = await client.put(
+        f"/api/v1/personal-projects/{project_id}",
+        json={
+            "name": "Budget Tracker",
+            "description": "Updated budget app.",
+            "tech_stack": ["Next.js", "TypeScript", "TailwindCSS"],
+            "is_public": True,
+            "is_featured": False,
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["data"]["is_featured"] is False
+
+    delete_response = await client.delete(f"/api/v1/personal-projects/{project_id}")
+    assert delete_response.status_code == 200

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.profile import Profile, WorkExperience
-from app.models.project import Project
+from app.models.project import PersonalProject, Project
 from app.models.todo import Todo
 from app.repositories.base import BaseRepository
 
@@ -21,6 +21,7 @@ class ProjectRepository(BaseRepository[Project]):
             .options(
                 selectinload(Project.todos),
                 selectinload(Project.tech_stack),
+                selectinload(Project.testimonial),
             )
         )
         return result.scalar_one_or_none()
@@ -34,6 +35,33 @@ class ProjectRepository(BaseRepository[Project]):
             .options(
                 selectinload(Project.todos),
                 selectinload(Project.tech_stack),
+                selectinload(Project.testimonial),
             )
+        )
+        return result.scalar_one_or_none()
+
+
+class PersonalProjectRepository(BaseRepository[PersonalProject]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(PersonalProject, db)
+
+    async def get_all_for_user(self, user_id: UUID) -> list[PersonalProject]:
+        result = await self.db.execute(
+            select(PersonalProject)
+            .join(Profile, PersonalProject.profile_id == Profile.id)
+            .where(Profile.user_id == user_id)
+            .options(selectinload(PersonalProject.tech_stack))
+            .order_by(PersonalProject.sort_order)
+        )
+        return list(result.scalars().all())
+
+    async def get_by_id_for_user(
+        self, project_id: UUID, user_id: UUID
+    ) -> PersonalProject | None:
+        result = await self.db.execute(
+            select(PersonalProject)
+            .join(Profile, PersonalProject.profile_id == Profile.id)
+            .where(PersonalProject.id == project_id, Profile.user_id == user_id)
+            .options(selectinload(PersonalProject.tech_stack))
         )
         return result.scalar_one_or_none()

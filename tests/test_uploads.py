@@ -227,3 +227,54 @@ async def test_upload_resume_updates_profile(
     upload_data = response.json()
     assert upload_data["path"].endswith("/resume.pdf")
     assert upload_data["url"] == f"https://signed.example/{upload_data['path']}"
+
+
+@pytest.mark.asyncio
+async def test_upload_personal_project_image_updates_personal_project(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    async def fake_upload_file(self, *, bucket: str, path: str, content: bytes, content_type: str):
+        return path
+
+    async def fake_delete_file(self, *, bucket: str, path: str | None):
+        return None
+
+    async def fake_delete_files(self, *, bucket: str, paths: list[str]):
+        return None
+
+    async def fake_list_files(self, *, bucket: str, prefix: str):
+        return []
+
+    async def fake_resolve_project_url(self, path: str | None):
+        return f"https://signed.example/{path}" if path else None
+
+    monkeypatch.setattr(StorageService, "upload_file", fake_upload_file)
+    monkeypatch.setattr(StorageService, "delete_file", fake_delete_file)
+    monkeypatch.setattr(StorageService, "delete_files", fake_delete_files)
+    monkeypatch.setattr(StorageService, "list_files", fake_list_files)
+    monkeypatch.setattr(StorageService, "resolve_project_url", fake_resolve_project_url)
+
+    personal_project = await client.post(
+        "/api/v1/personal-projects",
+        json={
+            "name": "Portfolio App",
+            "description": "Personal portfolio",
+            "tech_stack": ["Next.js"],
+            "is_public": True,
+            "is_featured": True,
+        },
+    )
+    assert personal_project.status_code == 201
+    personal_project_id = personal_project.json()["data"]["id"]
+
+    response = await client.post(
+        "/api/v1/uploads/personal-project-image",
+        data={"personal_project_id": personal_project_id},
+        files={"file": ("project.png", b"project-bytes", "image/png")},
+    )
+
+    assert response.status_code == 201
+    upload_data = response.json()
+    assert upload_data["path"].endswith("/personal-project.png")
+    assert upload_data["url"] == f"https://signed.example/{upload_data['path']}"

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.profile import EducationEntry, Profile, Skill, SocialLink, WorkExperience
-from app.models.project import Project
+from app.models.project import PersonalProject, Project
 from app.repositories.base import BaseRepository
 
 
@@ -22,6 +22,7 @@ class ProfileRepository(BaseRepository[Profile]):
                 selectinload(Profile.education_entries),
                 selectinload(Profile.social_links),
                 selectinload(Profile.skills),
+                selectinload(Profile.personal_projects).selectinload(PersonalProject.tech_stack),
             )
         )
         return result.scalar_one_or_none()

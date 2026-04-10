@@ -66,6 +66,12 @@ class Profile(Base, UUIDMixin, TimestampMixin):
     social_links: Mapped[list[SocialLink]] = relationship(
         back_populates="profile", cascade="all, delete-orphan", order_by="SocialLink.sort_order", lazy="selectin"
     )
+    personal_projects: Mapped[list["PersonalProject"]] = relationship(  # type: ignore[name-defined] # noqa: F821
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        order_by="PersonalProject.sort_order",
+        lazy="selectin",
+    )
     skills: Mapped[list[Skill]] = relationship(secondary=profile_skills, lazy="selectin")
 
 

@@ -2,7 +2,12 @@
 from app.models.base import Base
 from app.models.portfolio import PortfolioView
 from app.models.profile import EducationEntry, Profile, Skill, SocialLink, WorkExperience
-from app.models.project import Project
+from app.models.project import (
+    PersonalProject,
+    Project,
+    ProjectTestimonial,
+    ProjectTestimonialSubmissionLog,
+)
 from app.models.resume import Resume, ResumeEducation, ResumeExperience, ResumeLink, ResumeProject
 from app.models.todo import Todo
 from app.models.user import User
@@ -12,8 +17,11 @@ __all__ = [
     "Base",
     "EducationEntry",
     "PortfolioView",
+    "PersonalProject",
     "Profile",
     "Project",
+    "ProjectTestimonial",
+    "ProjectTestimonialSubmissionLog",
     "Resume",
     "ResumeEducation",
     "ResumeExperience",

@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     # CORS
     allowed_origins: str = "http://localhost:3000"
 
+    # Public testimonial protection
+    public_testimonial_rate_limit_window_minutes: int = 60
+    public_testimonial_rate_limit_max_attempts: int = 3
+    public_testimonial_captcha_secret: str | None = None
+    public_testimonial_captcha_verify_url: str = (
+        "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+    )
+
     # Environment
     environment: str = "development"
     debug: bool = True
