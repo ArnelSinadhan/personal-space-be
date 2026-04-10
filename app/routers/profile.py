@@ -92,7 +92,7 @@ async def update_education(
 ):
     service = ProfileService(db)
     try:
-        return await service.update_education(entry_id, payload)
+        return await service.update_education(user.id, entry_id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Education entry not found")
 
@@ -106,7 +106,7 @@ async def update_certification(
 ):
     service = ProfileService(db)
     try:
-        return await service.update_certification(entry_id, payload)
+        return await service.update_certification(user.id, entry_id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Certification entry not found")
 
@@ -153,7 +153,7 @@ async def update_work_experience(
 ):
     service = ProfileService(db)
     try:
-        return await service.update_work_experience(entry_id, payload)
+        return await service.update_work_experience(user.id, entry_id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Work experience not found")
 
@@ -166,7 +166,7 @@ async def delete_education(
 ):
     service = ProfileService(db)
     try:
-        await service.delete_education(entry_id)
+        await service.delete_education(user.id, entry_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Education entry not found")
     return MessageResponse(message="Deleted")
@@ -180,7 +180,7 @@ async def delete_certification(
 ):
     service = ProfileService(db)
     try:
-        await service.delete_certification(entry_id)
+        await service.delete_certification(user.id, entry_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Certification entry not found")
     return MessageResponse(message="Deleted")
@@ -194,7 +194,7 @@ async def delete_work_experience(
 ):
     service = ProfileService(db)
     try:
-        await service.delete_work_experience(entry_id)
+        await service.delete_work_experience(user.id, entry_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Work experience not found")
     return MessageResponse(message="Deleted")

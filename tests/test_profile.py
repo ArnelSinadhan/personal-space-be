@@ -1,6 +1,7 @@
 import pytest
 from httpx import AsyncClient
 
+from app.models.profile import CertificationEntry, EducationEntry, Profile, WorkExperience
 from app.models.user import User
 from app.services.profile_service import ProfileService
 
@@ -177,3 +178,67 @@ async def test_public_slug_stays_unique_between_users(
 
     assert first_profile.public_slug == "test"
     assert second_profile.public_slug == "test-2"
+
+
+@pytest.mark.asyncio
+async def test_profile_entry_mutations_are_scoped_to_current_user(
+    client: AsyncClient,
+    db_session,
+):
+    other_user = User(firebase_uid="other-user", email="other@example.com")
+    db_session.add(other_user)
+    await db_session.flush()
+
+    other_profile = Profile(user_id=other_user.id)
+    db_session.add(other_profile)
+    await db_session.flush()
+
+    other_work = WorkExperience(
+        profile_id=other_profile.id,
+        title="Other Role",
+        company="Other Co",
+        start_date="01/01/2024",
+        end_date=None,
+        is_current=True,
+        sort_order=0,
+    )
+    other_education = EducationEntry(
+        profile_id=other_profile.id,
+        degree="Other Degree",
+        school="Other School",
+        years="2020-2024",
+        sort_order=0,
+    )
+    other_certification = CertificationEntry(
+        profile_id=other_profile.id,
+        name="Other Certification",
+        issuer="Other Issuer",
+        issued_at="2026-01-01",
+        sort_order=0,
+    )
+    db_session.add_all([other_work, other_education, other_certification])
+    await db_session.commit()
+
+    work_update = await client.put(
+        f"/api/v1/profile/work-experience/{other_work.id}",
+        json={
+            "title": "Hacked",
+            "company": "Nope",
+            "start_date": "01/01/2024",
+            "is_current": True,
+        },
+    )
+    education_delete = await client.delete(f"/api/v1/profile/education/{other_education.id}")
+    certification_update = await client.put(
+        f"/api/v1/profile/certifications/{other_certification.id}",
+        json={
+            "name": "Changed",
+            "issuer": "Changed",
+            "issued_at": "2026-01-01",
+            "is_public": False,
+        },
+    )
+
+    assert work_update.status_code == 404
+    assert education_delete.status_code == 404
+    assert certification_update.status_code == 404

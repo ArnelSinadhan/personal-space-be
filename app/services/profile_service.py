@@ -85,9 +85,9 @@ class ProfileService:
         return await self._to_work_experience_out(entry)
 
     async def update_work_experience(
-        self, entry_id: UUID, data: WorkExperienceCreate
+        self, user_id: UUID, entry_id: UUID, data: WorkExperienceCreate
     ) -> WorkExperienceOut:
-        entry = await self.work_repo.get_by_id(entry_id)
+        entry = await self.work_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Work experience not found")
         for field, value in data.model_dump().items():
@@ -95,8 +95,8 @@ class ProfileService:
         await self.db.flush()
         return await self._to_work_experience_out(entry)
 
-    async def delete_work_experience(self, entry_id: UUID) -> None:
-        entry = await self.work_repo.get_by_id(entry_id)
+    async def delete_work_experience(self, user_id: UUID, entry_id: UUID) -> None:
+        entry = await self.work_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Work experience not found")
         await self.work_repo.delete(entry)
@@ -114,8 +114,10 @@ class ProfileService:
         await self.db.flush()
         return EducationOut.model_validate(entry)
 
-    async def update_education(self, entry_id: UUID, data: EducationCreate) -> EducationOut:
-        entry = await self.edu_repo.get_by_id(entry_id)
+    async def update_education(
+        self, user_id: UUID, entry_id: UUID, data: EducationCreate
+    ) -> EducationOut:
+        entry = await self.edu_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Education entry not found")
         for field, value in data.model_dump().items():
@@ -123,8 +125,8 @@ class ProfileService:
         await self.db.flush()
         return EducationOut.model_validate(entry)
 
-    async def delete_education(self, entry_id: UUID) -> None:
-        entry = await self.edu_repo.get_by_id(entry_id)
+    async def delete_education(self, user_id: UUID, entry_id: UUID) -> None:
+        entry = await self.edu_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Education entry not found")
         await self.edu_repo.delete(entry)
@@ -145,9 +147,9 @@ class ProfileService:
         return await self._to_certification_out(entry)
 
     async def update_certification(
-        self, entry_id: UUID, data: CertificationCreate
+        self, user_id: UUID, entry_id: UUID, data: CertificationCreate
     ) -> CertificationOut:
-        entry = await self.cert_repo.get_by_id(entry_id)
+        entry = await self.cert_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Certification entry not found")
         for field, value in data.model_dump().items():
@@ -155,8 +157,8 @@ class ProfileService:
         await self.db.flush()
         return await self._to_certification_out(entry)
 
-    async def delete_certification(self, entry_id: UUID) -> None:
-        entry = await self.cert_repo.get_by_id(entry_id)
+    async def delete_certification(self, user_id: UUID, entry_id: UUID) -> None:
+        entry = await self.cert_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Certification entry not found")
         await self.cert_repo.delete(entry)

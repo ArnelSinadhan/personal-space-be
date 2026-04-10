@@ -56,6 +56,7 @@ cp .env.example .env
 
 Important values:
 
+- `APP_PORT_LOCAL`
 - `DATABASE_URL`
 - `FIREBASE_SERVICE_ACCOUNT_KEY` or `FIREBASE_SERVICE_ACCOUNT_PATH`
 - `VAULT_ENCRYPTION_SECRET`
@@ -64,9 +65,11 @@ Important values:
 
 Notes:
 
+- `APP_PORT_LOCAL` controls the local API port when you run with Docker Compose.
 - `DATABASE_URL` should point to your local Postgres database.
 - You can either paste the Firebase service account JSON into `FIREBASE_SERVICE_ACCOUNT_KEY` as one line, or use `FIREBASE_SERVICE_ACCOUNT_PATH`.
 - `VAULT_ENCRYPTION_SECRET` should be a stable secret, not a placeholder.
+- In Railway, the container should bind to the platform-provided `PORT` variable.
 
 ## Local Development
 
@@ -96,7 +99,7 @@ Start the API:
 uvicorn app.main:app --reload
 ```
 
-The API will be available at [http://localhost:8000](http://localhost:8000).
+The API will be available at [http://localhost:8000](http://localhost:8000) by default, or whatever value you set for `APP_PORT_LOCAL`.
 
 ### Option 2: Docker Compose for API + DB
 
@@ -106,7 +109,7 @@ docker compose up --build
 
 This starts:
 
-- API on port `8000`
+- API on port `APP_PORT_LOCAL` (default `8000`)
 - Postgres on port `5432`
 
 ## Database Setup
@@ -149,8 +152,8 @@ If you skip this step, tests will fail during setup because the test database do
 
 ## API Docs
 
-- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
-- ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs) by default
+- ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc) by default
 
 ## Common Commands
 
