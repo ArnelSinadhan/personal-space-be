@@ -64,6 +64,9 @@ class PublicCertificationOut(BaseModel):
 class PublicProfileOut(BaseModel):
     name: str | None = None
     role: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
     avatar: str | None = None
     about: str | None = None
     skills: list[str] = []

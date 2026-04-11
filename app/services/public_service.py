@@ -125,6 +125,9 @@ class PublicPortfolioService:
             profile=PublicProfileOut(
                 name=hydrated_profile.name,
                 role=hydrated_profile.role,
+                email=hydrated_profile.email,
+                phone=hydrated_profile.phone,
+                address=hydrated_profile.address,
                 avatar=await self.storage.resolve_profile_url(hydrated_profile.avatar_url),
                 about=hydrated_profile.about,
                 skills=[skill.name for skill in hydrated_profile.skills],

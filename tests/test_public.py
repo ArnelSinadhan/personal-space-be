@@ -99,6 +99,9 @@ async def test_public_portfolio_returns_aggregated_data(
     data = response.json()["data"]
     assert data["profile"]["name"] == "Portfolio Owner"
     assert data["profile"]["role"] == "Full Stack Developer"
+    assert data["profile"]["email"] == "owner@example.com"
+    assert data["profile"]["phone"] == "123456789"
+    assert data["profile"]["address"] == "Manila"
     assert len(data["profile"]["social_links"]) == 2
     assert len(data["education"]) == 1
     assert len(data["certifications"]) == 1
