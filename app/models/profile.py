@@ -97,6 +97,7 @@ class WorkExperience(Base, UUIDMixin, TimestampMixin):
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     company: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
     start_date: Mapped[str] = mapped_column(String(100), nullable=False)
     end_date: Mapped[str | None] = mapped_column(String(100))
     is_current: Mapped[bool] = mapped_column(default=False)

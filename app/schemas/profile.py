@@ -12,6 +12,7 @@ from app.schemas.project import ProjectOut
 class WorkExperienceCreate(BaseModel):
     title: str = Field(..., max_length=255)
     company: str = Field(..., max_length=255)
+    description: str | None = None
     start_date: str = Field(..., max_length=100)
     end_date: str | None = None
     is_current: bool = False

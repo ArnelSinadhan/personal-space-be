@@ -13,6 +13,7 @@ class PublicProjectTestimonialOut(BaseModel):
 
 
 class PublicProjectOut(BaseModel):
+    id: str
     name: str
     description: str | None = None
     image_url: str | None = None
@@ -36,6 +37,7 @@ class PublicPersonalProjectOut(BaseModel):
 class PublicWorkExperienceOut(BaseModel):
     title: str
     company: str
+    description: str | None = None
     start_date: str
     end_date: str | None = None
     is_current: bool

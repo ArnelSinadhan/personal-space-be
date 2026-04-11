@@ -197,6 +197,7 @@ class ProfileService:
             id=entry.id,
             title=entry.title,
             company=entry.company,
+            description=entry.description,
             start_date=entry.start_date,
             end_date=entry.end_date,
             is_current=entry.is_current,

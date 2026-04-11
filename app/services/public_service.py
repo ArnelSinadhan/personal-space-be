@@ -104,6 +104,7 @@ class PublicPortfolioService:
                 PublicWorkExperienceOut(
                     title=workspace.title,
                     company=workspace.company,
+                    description=workspace.description,
                     start_date=workspace.start_date,
                     end_date=workspace.end_date,
                     is_current=workspace.is_current,
@@ -265,6 +266,7 @@ class PublicPortfolioService:
         self, project: Project, company_name: str
     ) -> PublicProjectOut:
         return PublicProjectOut(
+            id=str(project.id),
             name=project.name,
             description=project.description,
             image_url=await self.storage.resolve_project_url(project.image_url),
