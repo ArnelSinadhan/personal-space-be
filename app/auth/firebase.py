@@ -1,4 +1,6 @@
 import json
+from datetime import timedelta
+from typing import Any
 
 import firebase_admin
 from firebase_admin import auth, credentials
@@ -35,6 +37,46 @@ def get_firebase_app() -> firebase_admin.App:
     if _app is None:
         return init_firebase()
     return _app
+
+
+def verify_firebase_id_token(
+    token: str,
+    *,
+    check_revoked: bool = False,
+) -> dict[str, Any]:
+    return auth.verify_id_token(
+        token,
+        check_revoked=check_revoked,
+        app=get_firebase_app(),
+    )
+
+
+def create_firebase_session_cookie(
+    id_token: str,
+    *,
+    expires_in: timedelta,
+) -> str:
+    return auth.create_session_cookie(
+        id_token,
+        expires_in=expires_in,
+        app=get_firebase_app(),
+    )
+
+
+def verify_firebase_session_cookie(
+    session_cookie: str,
+    *,
+    check_revoked: bool = True,
+) -> dict[str, Any]:
+    return auth.verify_session_cookie(
+        session_cookie,
+        check_revoked=check_revoked,
+        app=get_firebase_app(),
+    )
+
+
+def revoke_firebase_refresh_tokens(uid: str) -> None:
+    auth.revoke_refresh_tokens(uid, app=get_firebase_app())
 
 
 def delete_firebase_user(uid: str) -> None:

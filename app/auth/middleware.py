@@ -1,17 +1,36 @@
 from uuid import UUID
 
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
-import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import firebase
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
 
 security = HTTPBearer()
+
+
+async def get_or_create_user_from_claims(
+    decoded: dict,
+    db: AsyncSession,
+) -> User:
+    uid = str(decoded["uid"])
+    email = str(decoded.get("email", ""))
+
+    result = await db.execute(select(User).where(User.firebase_uid == uid))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(firebase_uid=uid, email=email)
+        db.add(user)
+        await db.flush()
+
+    return user
 
 
 async def get_current_user(
@@ -25,7 +44,7 @@ async def get_current_user(
     token = credentials.credentials
 
     try:
-        decoded = firebase_auth.verify_id_token(token)
+        decoded = firebase.verify_firebase_id_token(token)
     except firebase_auth.ExpiredIdTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -42,20 +61,7 @@ async def get_current_user(
             detail="Could not verify credentials",
         )
 
-    uid: str = decoded["uid"]
-    email: str = decoded.get("email", "")
-
-    # Look up existing user
-    result = await db.execute(select(User).where(User.firebase_uid == uid))
-    user = result.scalar_one_or_none()
-
-    # Auto-provision on first login
-    if user is None:
-        user = User(firebase_uid=uid, email=email)
-        db.add(user)
-        await db.flush()
-
-    return user
+    return await get_or_create_user_from_claims(decoded, db)
 
 
 async def get_current_vault_user_id(

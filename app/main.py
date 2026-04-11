@@ -1,5 +1,5 @@
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -12,6 +12,7 @@ from app.config import settings
 from app.database import engine
 from app.routers import (
     account,
+    auth,
     dashboard,
     profile,
     projects,
@@ -44,6 +45,10 @@ app = FastAPI(
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+
+def get_docs_favicon_url() -> str:
+    return f"{settings.frontend_app_url.rstrip('/')}/brand/personal-space-mark-light.svg"
+
 # -- CORS --------------------------------------------------------------------
 
 app.add_middleware(
@@ -57,6 +62,7 @@ app.add_middleware(
 # -- Routers -----------------------------------------------------------------
 
 app.include_router(profile.router)
+app.include_router(auth.router)
 app.include_router(account.router)
 app.include_router(vault.router)
 app.include_router(projects.router)
@@ -79,6 +85,7 @@ async def custom_swagger_ui_html(request: Request):
         context={
             "title": app.title,
             "openapi_url": openapi_url,
+            "favicon_url": get_docs_favicon_url(),
         },
     )
 

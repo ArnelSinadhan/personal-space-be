@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     firebase_service_account_key: str | None = None
     firebase_service_account_path: str | None = None
     firebase_storage_bucket: str = ""
+    firebase_session_expire_days: int = 7
 
     # Supabase Storage
     supabase_url: str | None = None
@@ -32,6 +33,7 @@ class Settings(BaseSettings):
 
     # CORS
     allowed_origins: str = "http://localhost:3000"
+    frontend_app_url: str = "http://localhost:3000"
 
     # Public testimonial protection
     public_testimonial_rate_limit_window_minutes: int = 60
