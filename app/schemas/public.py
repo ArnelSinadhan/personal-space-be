@@ -68,6 +68,7 @@ class PublicProfileOut(BaseModel):
     phone: str | None = None
     address: str | None = None
     avatar: str | None = None
+    resume_url: str | None = None
     about: str | None = None
     skills: list[str] = []
     social_links: list[PublicSocialLinkOut] = []

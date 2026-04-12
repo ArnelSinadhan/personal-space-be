@@ -129,6 +129,9 @@ class PublicPortfolioService:
                 phone=hydrated_profile.phone,
                 address=hydrated_profile.address,
                 avatar=await self.storage.resolve_profile_url(hydrated_profile.avatar_url),
+                resume_url=await self.storage.resolve_resume_url(
+                    hydrated_profile.resume_url
+                ),
                 about=hydrated_profile.about,
                 skills=[skill.name for skill in hydrated_profile.skills],
                 social_links=[
