@@ -52,6 +52,9 @@ async def test_project_and_todo_flow(client: AsyncClient):
     assert project["github_url"] == "https://github.com/example/cms"
     assert project["live_url"] == "https://cms.example.com"
     assert "Next.js" in project["tech_stack"]
+    assert project["lifecycle_status"] == "active"
+    assert project["completed_at"] is None
+    assert project["archived_at"] is None
 
     response = await client.put(
         f"/api/v1/projects/{project_id}",
@@ -62,6 +65,8 @@ async def test_project_and_todo_flow(client: AsyncClient):
             "live_url": "https://cms-v2.example.com",
             "tech_stack": ["Next.js", "TypeScript", "FastAPI", "PostgreSQL"],
             "is_public": True,
+            "lifecycle_status": "maintenance",
+            "outcome_summary": "Supporting the shipped product with iterative updates.",
         },
     )
     assert response.status_code == 200
@@ -69,6 +74,11 @@ async def test_project_and_todo_flow(client: AsyncClient):
     assert updated_project["github_url"] == "https://github.com/example/cms-v2"
     assert updated_project["live_url"] == "https://cms-v2.example.com"
     assert updated_project["is_public"] is True
+    assert updated_project["lifecycle_status"] == "maintenance"
+    assert (
+        updated_project["outcome_summary"]
+        == "Supporting the shipped product with iterative updates."
+    )
 
     # Create todo
     response = await client.post(f"/api/v1/projects/{project_id}/todos", json={
@@ -223,6 +233,79 @@ async def test_project_testimonial_owner_can_approve_and_delete(client: AsyncCli
 
 
 @pytest.mark.asyncio
+async def test_completed_project_disables_todo_mutations(client: AsyncClient):
+    workspace = await client.post(
+        "/api/v1/profile/work-experience",
+        json={
+            "title": "Engineer",
+            "company": "Test Co",
+            "start_date": "2024",
+        },
+    )
+    work_experience_id = workspace.json()["id"]
+
+    project_response = await client.post(
+        f"/api/v1/work-experiences/{work_experience_id}/projects",
+        json={
+            "name": "Legacy Client Portal",
+            "description": "Completed historical delivery.",
+            "tech_stack": ["Next.js", "FastAPI"],
+            "lifecycle_status": "completed",
+        },
+    )
+    assert project_response.status_code == 201
+    project = project_response.json()["data"]
+    project_id = project["id"]
+    assert project["lifecycle_status"] == "completed"
+    assert project["completed_at"] is not None
+
+    create_todo_response = await client.post(
+        f"/api/v1/projects/{project_id}/todos",
+        json={
+            "title": "Backfill docs",
+            "status": "todo",
+        },
+    )
+    assert create_todo_response.status_code == 409
+    assert "Todos are disabled" in create_todo_response.json()["detail"]
+
+    active_project_response = await client.post(
+        f"/api/v1/work-experiences/{work_experience_id}/projects",
+        json={
+            "name": "Ops Dashboard",
+            "description": "Operational dashboard",
+            "tech_stack": ["React"],
+        },
+    )
+    active_project_id = active_project_response.json()["data"]["id"]
+
+    todo_response = await client.post(
+        f"/api/v1/projects/{active_project_id}/todos",
+        json={
+            "title": "Ship release checklist",
+            "status": "todo",
+        },
+    )
+    todo_id = todo_response.json()["id"]
+
+    complete_response = await client.put(
+        f"/api/v1/projects/{active_project_id}",
+        json={"lifecycle_status": "completed"},
+    )
+    assert complete_response.status_code == 200
+    assert complete_response.json()["data"]["completed_at"] is not None
+
+    update_todo_response = await client.patch(
+        f"/api/v1/todos/{todo_id}",
+        json={"status": "done"},
+    )
+    assert update_todo_response.status_code == 409
+
+    delete_todo_response = await client.delete(f"/api/v1/todos/{todo_id}")
+    assert delete_todo_response.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_personal_project_crud_flow(client: AsyncClient):
     create_response = await client.post(
         "/api/v1/personal-projects",
@@ -240,6 +323,7 @@ async def test_personal_project_crud_flow(client: AsyncClient):
     project = create_response.json()["data"]
     project_id = project["id"]
     assert project["is_featured"] is True
+    assert project["lifecycle_status"] == "active"
 
     list_response = await client.get("/api/v1/personal-projects")
     assert list_response.status_code == 200
@@ -253,10 +337,14 @@ async def test_personal_project_crud_flow(client: AsyncClient):
             "tech_stack": ["Next.js", "TypeScript", "TailwindCSS"],
             "is_public": True,
             "is_featured": False,
+            "lifecycle_status": "archived",
+            "outcome_summary": "Kept as historical reference after wrapping active development.",
         },
     )
     assert update_response.status_code == 200
     assert update_response.json()["data"]["is_featured"] is False
+    assert update_response.json()["data"]["lifecycle_status"] == "archived"
+    assert update_response.json()["data"]["archived_at"] is not None
 
     delete_response = await client.delete(f"/api/v1/personal-projects/{project_id}")
     assert delete_response.status_code == 200

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.enums import ProjectTestimonialStatus
+from app.enums import ProjectLifecycleStatus, ProjectTestimonialStatus
 from app.models.portfolio import PortfolioView
 from app.models.profile import Profile, WorkExperience
 from app.models.project import (
@@ -280,6 +280,10 @@ class PublicPortfolioService:
             live_url=project.live_url,
             company=company_name,
             tech_stack=[skill.name for skill in project.tech_stack],
+            lifecycle_status=self._coerce_lifecycle_status(project.lifecycle_status),
+            completed_at=project.completed_at,
+            archived_at=project.archived_at,
+            outcome_summary=project.outcome_summary,
             testimonial=(
                 PublicProjectTestimonialOut(
                     name=project.testimonial.name,
@@ -296,6 +300,7 @@ class PublicPortfolioService:
         self, personal_project: PersonalProject
     ) -> PublicPersonalProjectOut:
         return PublicPersonalProjectOut(
+            id=str(personal_project.id),
             name=personal_project.name,
             description=personal_project.description,
             image_url=await self.storage.resolve_project_url(personal_project.image_url),
@@ -303,7 +308,19 @@ class PublicPortfolioService:
             live_url=personal_project.live_url,
             tech_stack=[skill.name for skill in personal_project.tech_stack],
             is_featured=personal_project.is_featured,
+            lifecycle_status=self._coerce_lifecycle_status(personal_project.lifecycle_status),
+            completed_at=personal_project.completed_at,
+            archived_at=personal_project.archived_at,
+            outcome_summary=personal_project.outcome_summary,
         )
+
+    def _coerce_lifecycle_status(
+        self,
+        status: str | ProjectLifecycleStatus,
+    ) -> ProjectLifecycleStatus:
+        if isinstance(status, ProjectLifecycleStatus):
+            return status
+        return ProjectLifecycleStatus(status)
 
     def _get_client_ip(self, request: Request) -> str | None:
         forwarded_for = request.headers.get("x-forwarded-for")

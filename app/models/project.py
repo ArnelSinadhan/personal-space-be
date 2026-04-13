@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
 import uuid
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.enums import ProjectLifecycleStatus
 from app.models.base import Base, TimestampMixin, UUIDMixin
 from app.models.profile import Skill
 
@@ -50,6 +52,15 @@ class Project(Base, UUIDMixin, TimestampMixin):
     github_url: Mapped[str | None] = mapped_column(Text)
     live_url: Mapped[str | None] = mapped_column(Text)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    lifecycle_status: Mapped[str] = mapped_column(
+        String(20),
+        default=ProjectLifecycleStatus.ACTIVE.value,
+        nullable=False,
+        index=True,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome_summary: Mapped[str | None] = mapped_column(Text)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     # Relationships
@@ -112,6 +123,15 @@ class PersonalProject(Base, UUIDMixin, TimestampMixin):
     live_url: Mapped[str | None] = mapped_column(Text)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    lifecycle_status: Mapped[str] = mapped_column(
+        String(20),
+        default=ProjectLifecycleStatus.ACTIVE.value,
+        nullable=False,
+        index=True,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome_summary: Mapped[str | None] = mapped_column(Text)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     profile: Mapped["Profile"] = relationship(back_populates="personal_projects")  # type: ignore[name-defined] # noqa: F821

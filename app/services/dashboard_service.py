@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.enums import ProjectLifecycleStatus
 from app.models.profile import Profile
 from app.models.project import Project
 from app.models.todo import Todo
@@ -98,6 +99,9 @@ class DashboardService:
         completed_this_week = self._count_completed_this_week(flat_tasks)
 
         total_projects = sum(len(work.projects) for work in work_experiences)
+        active_project_count, maintenance_project_count, completed_project_count, archived_project_count = (
+            self._count_projects_by_lifecycle(work_experiences)
+        )
         vault_entry_count = sum(vault_counts.values())
 
         return DashboardOverviewOut(
@@ -105,6 +109,10 @@ class DashboardService:
             profile=profile_completeness,
             company_count=len(work_experiences),
             total_projects=total_projects,
+            active_project_count=active_project_count,
+            maintenance_project_count=maintenance_project_count,
+            completed_project_count=completed_project_count,
+            archived_project_count=archived_project_count,
             total_tasks=len(flat_tasks),
             completed_today=completed_today,
             completed_this_week=completed_this_week,
@@ -173,6 +181,8 @@ class DashboardService:
         tasks: list[dict[str, str | int | None]] = []
         for work in work_experiences:
             for project in work.projects:
+                if not self._is_operational_project(project):
+                    continue
                 for todo in project.todos:
                     tasks.append(
                         {
@@ -242,7 +252,12 @@ class DashboardService:
     def _build_company_bar_data(self, work_experiences: list) -> list[DashboardCompanyBarDatum]:
         data: list[DashboardCompanyBarDatum] = []
         for work in work_experiences:
-            todos = [todo for project in work.projects for todo in project.todos]
+            todos = [
+                todo
+                for project in work.projects
+                if self._is_operational_project(project)
+                for todo in project.todos
+            ]
             data.append(
                 DashboardCompanyBarDatum(
                     name=f"{work.company[:12]}..." if len(work.company) > 12 else work.company,
@@ -258,6 +273,8 @@ class DashboardService:
         index = 0
         for work in work_experiences:
             for project in work.projects:
+                if not self._is_operational_project(project):
+                    continue
                 total = len(project.todos)
                 done = sum(1 for todo in project.todos if todo.status == "done")
                 progress = round((done / total) * 100) if total else 0
@@ -297,6 +314,25 @@ class DashboardService:
             )
             for task in active_tasks[:limit]
         ]
+
+    def _count_projects_by_lifecycle(self, work_experiences: list) -> tuple[int, int, int, int]:
+        counts = Counter(
+            project.lifecycle_status
+            for work in work_experiences
+            for project in work.projects
+        )
+        return (
+            counts.get(ProjectLifecycleStatus.ACTIVE.value, 0),
+            counts.get(ProjectLifecycleStatus.MAINTENANCE.value, 0),
+            counts.get(ProjectLifecycleStatus.COMPLETED.value, 0),
+            counts.get(ProjectLifecycleStatus.ARCHIVED.value, 0),
+        )
+
+    def _is_operational_project(self, project: Project) -> bool:
+        return project.lifecycle_status in {
+            ProjectLifecycleStatus.ACTIVE.value,
+            ProjectLifecycleStatus.MAINTENANCE.value,
+        }
 
     def _build_profile_completeness(
         self,

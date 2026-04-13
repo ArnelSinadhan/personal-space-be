@@ -76,6 +76,8 @@ async def test_public_portfolio_returns_aggregated_data(
             "live_url": "https://portfolio-project.example.com",
             "tech_stack": ["Next.js", "FastAPI"],
             "is_public": True,
+            "lifecycle_status": "completed",
+            "outcome_summary": "Delivered successfully and handed off.",
         },
     )
 
@@ -116,11 +118,18 @@ async def test_public_portfolio_returns_aggregated_data(
         data["work_experience"][0]["projects"][0]["live_url"]
         == "https://portfolio-project.example.com"
     )
+    assert data["work_experience"][0]["projects"][0]["lifecycle_status"] == "completed"
+    assert data["work_experience"][0]["projects"][0]["completed_at"] is not None
+    assert (
+        data["work_experience"][0]["projects"][0]["outcome_summary"]
+        == "Delivered successfully and handed off."
+    )
     assert (
         data["personal_projects"][0]["github_url"]
         == "https://github.com/example/personal-finance-tracker"
     )
     assert data["personal_projects"][0]["is_featured"] is True
+    assert data["personal_projects"][0]["id"] is not None
     assert data["certifications"][0]["issuer"] == "Amazon Web Services"
     assert data["stats"]["public_project_count"] == 2
     assert data["stats"]["company_count"] == 1

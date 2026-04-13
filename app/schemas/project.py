@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.enums import ProjectTestimonialStatus
+from app.enums import ProjectLifecycleStatus, ProjectTestimonialStatus
 from app.schemas.todo import TodoOut
 
 
@@ -15,6 +15,10 @@ class ProjectCreate(BaseModel):
     live_url: str | None = None
     tech_stack: list[str] = []
     is_public: bool = False
+    lifecycle_status: ProjectLifecycleStatus = ProjectLifecycleStatus.ACTIVE
+    completed_at: datetime | None = None
+    archived_at: datetime | None = None
+    outcome_summary: str | None = Field(None, max_length=2000)
 
 
 class ProjectUpdate(BaseModel):
@@ -25,6 +29,10 @@ class ProjectUpdate(BaseModel):
     live_url: str | None = None
     tech_stack: list[str] | None = None
     is_public: bool | None = None
+    lifecycle_status: ProjectLifecycleStatus | None = None
+    completed_at: datetime | None = None
+    archived_at: datetime | None = None
+    outcome_summary: str | None = Field(None, max_length=2000)
 
 
 class PersonalProjectCreate(BaseModel):
@@ -36,6 +44,10 @@ class PersonalProjectCreate(BaseModel):
     tech_stack: list[str] = []
     is_public: bool = False
     is_featured: bool = False
+    lifecycle_status: ProjectLifecycleStatus = ProjectLifecycleStatus.ACTIVE
+    completed_at: datetime | None = None
+    archived_at: datetime | None = None
+    outcome_summary: str | None = Field(None, max_length=2000)
 
 
 class PersonalProjectUpdate(BaseModel):
@@ -47,6 +59,10 @@ class PersonalProjectUpdate(BaseModel):
     tech_stack: list[str] | None = None
     is_public: bool | None = None
     is_featured: bool | None = None
+    lifecycle_status: ProjectLifecycleStatus | None = None
+    completed_at: datetime | None = None
+    archived_at: datetime | None = None
+    outcome_summary: str | None = Field(None, max_length=2000)
 
 
 class ProjectTestimonialUpdate(BaseModel):
@@ -76,6 +92,10 @@ class ProjectOut(BaseModel):
     live_url: str | None = None
     tech_stack: list[str] = []
     is_public: bool
+    lifecycle_status: ProjectLifecycleStatus
+    completed_at: datetime | None = None
+    archived_at: datetime | None = None
+    outcome_summary: str | None = None
     testimonial: ProjectTestimonialOut | None = None
     todos: list[TodoOut] = []
 
@@ -96,6 +116,10 @@ class PersonalProjectOut(BaseModel):
     tech_stack: list[str] = []
     is_public: bool
     is_featured: bool = False
+    lifecycle_status: ProjectLifecycleStatus
+    completed_at: datetime | None = None
+    archived_at: datetime | None = None
+    outcome_summary: str | None = None
 
     model_config = {"from_attributes": True}
 

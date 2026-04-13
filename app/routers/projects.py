@@ -16,7 +16,7 @@ from app.schemas.project import (
     ProjectUpdate,
 )
 from app.schemas.todo import TodoCreate, TodoOut, TodoUpdate
-from app.services.project_service import ProjectService
+from app.services.project_service import ProjectLifecycleConflictError, ProjectService
 
 router = APIRouter(prefix="/api/v1", tags=["projects & todos"])
 
@@ -35,6 +35,8 @@ async def create_todo(
         return await service.create_todo(project_id, user.id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Project not found")
+    except ProjectLifecycleConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @router.put("/projects/{project_id}", response_model=ProjectResponse)
@@ -121,6 +123,8 @@ async def update_todo(
         return await service.update_todo(todo_id, user.id, payload)
     except ValueError:
         raise HTTPException(status_code=404, detail="Todo not found")
+    except ProjectLifecycleConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @router.delete("/todos/{todo_id}", response_model=MessageResponse)
@@ -134,6 +138,8 @@ async def delete_todo(
         await service.delete_todo(todo_id, user.id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Todo not found")
+    except ProjectLifecycleConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     return MessageResponse(message="Deleted")
 
 

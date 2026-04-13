@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.profile import Profile, WorkExperience
 from app.models.todo import Todo
@@ -27,5 +28,6 @@ class TodoRepository(BaseRepository[Todo]):
             .join(WorkExperience, Project.work_experience_id == WorkExperience.id)
             .join(Profile, WorkExperience.profile_id == Profile.id)
             .where(Todo.id == todo_id, Profile.user_id == user_id)
+            .options(selectinload(Todo.project))
         )
         return result.scalar_one_or_none()

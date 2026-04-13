@@ -9,6 +9,13 @@ class TodoStatus(str, enum.Enum):
     PENDING = "pending"
 
 
+class ProjectLifecycleStatus(str, enum.Enum):
+    ACTIVE = "active"
+    MAINTENANCE = "maintenance"
+    COMPLETED = "completed"
+    ARCHIVED = "archived"
+
+
 class ResumeTemplate(str, enum.Enum):
     CLASSIC = "classic"
     MODERN = "modern"

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.enums import ProjectTestimonialStatus, TodoStatus
+from app.enums import ProjectLifecycleStatus, ProjectTestimonialStatus, TodoStatus
 from app.models.profile import Profile, WorkExperience
 from app.models.project import PersonalProject, Project, ProjectTestimonial
 from app.models.todo import Todo
@@ -25,6 +25,10 @@ from app.schemas.project import (
 from app.schemas.profile import WorkExperienceWorkspaceOut
 from app.schemas.todo import TodoCreate, TodoOut, TodoUpdate
 from app.services.storage_service import StorageService
+
+
+class ProjectLifecycleConflictError(Exception):
+    pass
 
 
 class ProjectService:
@@ -59,6 +63,12 @@ class ProjectService:
         if workspace is None:
             raise ValueError("Work experience not found")
         skills = await self.skill_repo.get_or_create_many(data.tech_stack)
+        lifecycle_fields = self._build_lifecycle_fields(
+            lifecycle_status=data.lifecycle_status,
+            completed_at=data.completed_at,
+            archived_at=data.archived_at,
+            outcome_summary=data.outcome_summary,
+        )
         project = Project(
             work_experience_id=work_experience_id,
             name=data.name,
@@ -67,6 +77,7 @@ class ProjectService:
             github_url=data.github_url,
             live_url=data.live_url,
             is_public=data.is_public,
+            **lifecycle_fields,
         )
         project.tech_stack = skills
         self.db.add(project)
@@ -82,6 +93,7 @@ class ProjectService:
             raise ValueError("Project not found")
         updates = data.model_dump(exclude_unset=True)
         previous_image_path = project.image_url
+        self._apply_lifecycle_updates(project, updates)
 
         for field, value in updates.items():
             if field == "tech_stack":
@@ -117,6 +129,12 @@ class ProjectService:
 
         skills = await self.skill_repo.get_or_create_many(data.tech_stack)
         existing = await self.personal_project_repo.get_all_for_user(user_id)
+        lifecycle_fields = self._build_lifecycle_fields(
+            lifecycle_status=data.lifecycle_status,
+            completed_at=data.completed_at,
+            archived_at=data.archived_at,
+            outcome_summary=data.outcome_summary,
+        )
         project = PersonalProject(
             profile_id=profile.id,
             name=data.name,
@@ -127,6 +145,7 @@ class ProjectService:
             is_public=data.is_public,
             is_featured=data.is_featured,
             sort_order=len(existing),
+            **lifecycle_fields,
         )
         project.tech_stack = skills
         self.db.add(project)
@@ -141,6 +160,7 @@ class ProjectService:
             raise ValueError("Personal project not found")
         updates = data.model_dump(exclude_unset=True)
         previous_image_path = project.image_url
+        self._apply_lifecycle_updates(project, updates)
 
         for field, value in updates.items():
             if field == "tech_stack":
@@ -218,6 +238,7 @@ class ProjectService:
         project = await self.project_repo.get_by_id_for_user(project_id, user_id)
         if project is None:
             raise ValueError("Project not found")
+        self._ensure_todos_enabled(project)
         existing = await self.todo_repo.get_by_project(project_id)
         todo = Todo(
             project_id=project_id,
@@ -235,6 +256,8 @@ class ProjectService:
         todo = await self.todo_repo.get_by_id_for_user(todo_id, user_id)
         if todo is None:
             raise ValueError("Todo not found")
+        if todo.project is not None:
+            self._ensure_todos_enabled(todo.project)
         if data.title is not None:
             todo.title = data.title
         if data.status is not None:
@@ -252,6 +275,8 @@ class ProjectService:
         todo = await self.todo_repo.get_by_id_for_user(todo_id, user_id)
         if todo is None:
             raise ValueError("Todo not found")
+        if todo.project is not None:
+            self._ensure_todos_enabled(todo.project)
         await self.todo_repo.delete(todo)
 
     # -- Serialization -------------------------------------------------------
@@ -278,6 +303,10 @@ class ProjectService:
             live_url=project.live_url,
             tech_stack=[s.name for s in project.tech_stack],
             is_public=project.is_public,
+            lifecycle_status=self._coerce_lifecycle_status(project.lifecycle_status),
+            completed_at=project.completed_at,
+            archived_at=project.archived_at,
+            outcome_summary=project.outcome_summary,
             testimonial=(
                 ProjectTestimonialOut.model_validate(project.testimonial)
                 if project.testimonial is not None
@@ -299,4 +328,85 @@ class ProjectService:
             tech_stack=[s.name for s in project.tech_stack],
             is_public=project.is_public,
             is_featured=project.is_featured,
+            lifecycle_status=self._coerce_lifecycle_status(project.lifecycle_status),
+            completed_at=project.completed_at,
+            archived_at=project.archived_at,
+            outcome_summary=project.outcome_summary,
         )
+
+    def _build_lifecycle_fields(
+        self,
+        *,
+        lifecycle_status: ProjectLifecycleStatus,
+        completed_at: datetime | None,
+        archived_at: datetime | None,
+        outcome_summary: str | None,
+    ) -> dict[str, object | None]:
+        status = lifecycle_status.value
+        now = datetime.now(timezone.utc)
+
+        return {
+            "lifecycle_status": status,
+            "completed_at": completed_at if status == ProjectLifecycleStatus.COMPLETED.value else None,
+            "archived_at": archived_at if status == ProjectLifecycleStatus.ARCHIVED.value else None,
+            "outcome_summary": outcome_summary,
+            **(
+                {"completed_at": completed_at or now}
+                if status == ProjectLifecycleStatus.COMPLETED.value
+                else {"archived_at": archived_at or now}
+                if status == ProjectLifecycleStatus.ARCHIVED.value
+                else {}
+            ),
+        }
+
+    def _apply_lifecycle_updates(
+        self,
+        project: Project | PersonalProject,
+        updates: dict[str, object | None],
+    ) -> None:
+        if not {
+            "lifecycle_status",
+            "completed_at",
+            "archived_at",
+            "outcome_summary",
+        }.intersection(updates):
+            return
+
+        next_status = project.lifecycle_status
+        raw_status = updates.get("lifecycle_status")
+        if raw_status is None:
+            updates.pop("lifecycle_status", None)
+        elif isinstance(raw_status, ProjectLifecycleStatus):
+            next_status = raw_status.value
+            updates["lifecycle_status"] = next_status
+        elif isinstance(raw_status, str):
+            next_status = raw_status
+
+        now = datetime.now(timezone.utc)
+        if next_status == ProjectLifecycleStatus.COMPLETED.value:
+            updates["completed_at"] = updates.get("completed_at") or project.completed_at or now
+            updates["archived_at"] = None
+        elif next_status == ProjectLifecycleStatus.ARCHIVED.value:
+            updates["archived_at"] = updates.get("archived_at") or project.archived_at or now
+            if "completed_at" not in updates:
+                updates["completed_at"] = project.completed_at
+        else:
+            updates["completed_at"] = None
+            updates["archived_at"] = None
+
+    def _ensure_todos_enabled(self, project: Project) -> None:
+        if project.lifecycle_status in {
+            ProjectLifecycleStatus.COMPLETED.value,
+            ProjectLifecycleStatus.ARCHIVED.value,
+        }:
+            raise ProjectLifecycleConflictError(
+                f"Todos are disabled for projects with lifecycle_status '{project.lifecycle_status}'."
+            )
+
+    def _coerce_lifecycle_status(
+        self,
+        status: str | ProjectLifecycleStatus,
+    ) -> ProjectLifecycleStatus:
+        if isinstance(status, ProjectLifecycleStatus):
+            return status
+        return ProjectLifecycleStatus(status)

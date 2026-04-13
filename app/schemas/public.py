@@ -1,4 +1,8 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field, field_validator
+
+from app.enums import ProjectLifecycleStatus
 
 
 class PublicSocialLinkOut(BaseModel):
@@ -21,10 +25,15 @@ class PublicProjectOut(BaseModel):
     live_url: str | None = None
     company: str
     tech_stack: list[str] = []
+    lifecycle_status: ProjectLifecycleStatus = ProjectLifecycleStatus.ACTIVE
+    completed_at: datetime | None = None
+    archived_at: datetime | None = None
+    outcome_summary: str | None = None
     testimonial: PublicProjectTestimonialOut | None = None
 
 
 class PublicPersonalProjectOut(BaseModel):
+    id: str
     name: str
     description: str | None = None
     image_url: str | None = None
@@ -32,6 +41,10 @@ class PublicPersonalProjectOut(BaseModel):
     live_url: str | None = None
     tech_stack: list[str] = []
     is_featured: bool = False
+    lifecycle_status: ProjectLifecycleStatus = ProjectLifecycleStatus.ACTIVE
+    completed_at: datetime | None = None
+    archived_at: datetime | None = None
+    outcome_summary: str | None = None
 
 
 class PublicWorkExperienceOut(BaseModel):

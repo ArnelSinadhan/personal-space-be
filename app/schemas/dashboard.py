@@ -64,6 +64,10 @@ class DashboardOverviewOut(BaseModel):
     profile: DashboardProfileCompleteness
     company_count: int
     total_projects: int
+    active_project_count: int
+    maintenance_project_count: int
+    completed_project_count: int
+    archived_project_count: int
     total_tasks: int
     completed_today: int
     completed_this_week: int
