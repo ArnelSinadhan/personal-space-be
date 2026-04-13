@@ -9,6 +9,7 @@ from app.models import (
     PortfolioView,
     Profile,
     Project,
+    Skill,
     Resume,
     ResumeEducation,
     ResumeExperience,
@@ -59,6 +60,25 @@ async def test_delete_account_removes_firebase_storage_and_database_records(
     db_session.add(project)
     await db_session.flush()
 
+    shared_skill = Skill(name="Shared Skill")
+    orphan_profile_skill = Skill(name="Orphan Profile Skill")
+    orphan_project_skill = Skill(name="Orphan Project Skill")
+    orphan_resume_skill = Skill(name="Orphan Resume Skill")
+    orphan_resume_project_skill = Skill(name="Orphan Resume Project Skill")
+    db_session.add_all(
+        [
+            shared_skill,
+            orphan_profile_skill,
+            orphan_project_skill,
+            orphan_resume_skill,
+            orphan_resume_project_skill,
+        ]
+    )
+    await db_session.flush()
+
+    profile.skills.extend([shared_skill, orphan_profile_skill])
+    project.tech_stack.extend([shared_skill, orphan_project_skill])
+
     db_session.add(Todo(project_id=project.id, title="Todo"))
     db_session.add(EducationEntry(profile_id=profile.id, degree="BSIT", school="ICCT", years="2019-2023"))
     db_session.add(SocialLink(profile_id=profile.id, label="GitHub", url="https://example.com"))
@@ -72,7 +92,11 @@ async def test_delete_account_removes_firebase_storage_and_database_records(
     await db_session.flush()
     db_session.add(ResumeExperience(resume_id=resume.id, title="Engineer", company="Acme", start_date="2024", end_date=""))
     db_session.add(ResumeEducation(resume_id=resume.id, degree="BSIT", school="ICCT", years="2019-2023"))
-    db_session.add(ResumeProject(resume_id=resume.id, name="Portfolio"))
+    resume.skills.extend([shared_skill, orphan_resume_skill])
+    resume_project = ResumeProject(resume_id=resume.id, name="Portfolio")
+    db_session.add(resume_project)
+    await db_session.flush()
+    resume_project.tech_stack.extend([shared_skill, orphan_resume_project_skill])
     db_session.add(ResumeLink(resume_id=resume.id, label="GitHub", url="https://example.com"))
     db_session.add(PortfolioView(user_id=test_user.id, path="/portfolio"))
     await db_session.commit()
@@ -98,6 +122,7 @@ async def test_delete_account_removes_firebase_storage_and_database_records(
     assert deleted_prefixes == [
         (settings.supabase_profile_images_bucket, str(test_user.id)),
         (settings.supabase_company_images_bucket, str(test_user.id)),
+        (settings.supabase_certification_images_bucket, str(test_user.id)),
         (settings.supabase_project_images_bucket, str(test_user.id)),
         (settings.supabase_resume_files_bucket, str(test_user.id)),
     ]
@@ -106,6 +131,11 @@ async def test_delete_account_removes_firebase_storage_and_database_records(
         select(User).where(User.id == test_user.id)
     )
     assert remaining_user is None
+
+    remaining_skill_names = (
+        await db_session.execute(select(Skill.name).order_by(Skill.name))
+    ).scalars().all()
+    assert remaining_skill_names == []
 
     for model in (
         Profile,

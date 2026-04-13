@@ -4,6 +4,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models.profile import (
     CertificationEntry,
     EducationEntry,
@@ -90,16 +91,41 @@ class ProfileService:
         entry = await self.work_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Work experience not found")
-        for field, value in data.model_dump().items():
+        updates = data.model_dump(exclude_unset=True)
+        previous_image_path = entry.image_url
+        clear_image_requested = (
+            "image_url" in updates
+            and updates["image_url"] is None
+            and previous_image_path is not None
+        )
+
+        for field, value in updates.items():
             setattr(entry, field, value)
         await self.db.flush()
+
+        if clear_image_requested:
+            await self.storage.delete_file(
+                bucket=settings.supabase_company_images_bucket,
+                path=previous_image_path,
+            )
+
         return await self._to_work_experience_out(entry)
 
     async def delete_work_experience(self, user_id: UUID, entry_id: UUID) -> None:
         entry = await self.work_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Work experience not found")
+        company_image_path = entry.image_url
+        project_image_paths = [project.image_url for project in entry.projects if project.image_url]
         await self.work_repo.delete(entry)
+        await self.storage.delete_file(
+            bucket=settings.supabase_company_images_bucket,
+            path=company_image_path,
+        )
+        await self.storage.delete_files(
+            bucket=settings.supabase_project_images_bucket,
+            paths=project_image_paths,
+        )
 
     # -- Education -----------------------------------------------------------
 
@@ -152,16 +178,36 @@ class ProfileService:
         entry = await self.cert_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Certification entry not found")
-        for field, value in data.model_dump().items():
+        updates = data.model_dump(exclude_unset=True)
+        previous_image_path = entry.image_url
+        clear_image_requested = (
+            "image_url" in updates
+            and updates["image_url"] is None
+            and previous_image_path is not None
+        )
+
+        for field, value in updates.items():
             setattr(entry, field, value)
         await self.db.flush()
+
+        if clear_image_requested:
+            await self.storage.delete_file(
+                bucket=settings.supabase_certification_images_bucket,
+                path=previous_image_path,
+            )
+
         return await self._to_certification_out(entry)
 
     async def delete_certification(self, user_id: UUID, entry_id: UUID) -> None:
         entry = await self.cert_repo.get_by_id_for_user(entry_id, user_id)
         if entry is None:
             raise ValueError("Certification entry not found")
+        image_path = entry.image_url
         await self.cert_repo.delete(entry)
+        await self.storage.delete_file(
+            bucket=settings.supabase_certification_images_bucket,
+            path=image_path,
+        )
 
     # -- Social Links --------------------------------------------------------
 

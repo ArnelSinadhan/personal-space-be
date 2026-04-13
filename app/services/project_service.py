@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.enums import ProjectTestimonialStatus, TodoStatus
 from app.models.profile import Profile, WorkExperience
 from app.models.project import PersonalProject, Project, ProjectTestimonial
@@ -79,28 +80,35 @@ class ProjectService:
         project = await self.project_repo.get_by_id_for_user(project_id, user_id)
         if project is None:
             raise ValueError("Project not found")
-        if data.name is not None:
-            project.name = data.name
-        if data.description is not None:
-            project.description = data.description
-        if data.image_url is not None:
-            project.image_url = data.image_url
-        if data.github_url is not None:
-            project.github_url = data.github_url
-        if data.live_url is not None:
-            project.live_url = data.live_url
-        if data.is_public is not None:
-            project.is_public = data.is_public
-        if data.tech_stack is not None:
-            project.tech_stack = await self.skill_repo.get_or_create_many(data.tech_stack)
+        updates = data.model_dump(exclude_unset=True)
+        previous_image_path = project.image_url
+
+        for field, value in updates.items():
+            if field == "tech_stack":
+                project.tech_stack = await self.skill_repo.get_or_create_many(value or [])
+                continue
+            setattr(project, field, value)
+
         await self.db.flush()
+
+        if "image_url" in updates and updates["image_url"] is None and previous_image_path is not None:
+            await self.storage.delete_file(
+                bucket=settings.supabase_project_images_bucket,
+                path=previous_image_path,
+            )
+
         return await self._project_to_out(project)
 
     async def delete_project(self, project_id: UUID, user_id: UUID) -> None:
         project = await self.project_repo.get_by_id_for_user(project_id, user_id)
         if project is None:
             raise ValueError("Project not found")
+        image_path = project.image_url
         await self.project_repo.delete(project)
+        await self.storage.delete_file(
+            bucket=settings.supabase_project_images_bucket,
+            path=image_path,
+        )
 
     async def create_personal_project(
         self, user_id: UUID, data: PersonalProjectCreate
@@ -131,30 +139,35 @@ class ProjectService:
         project = await self.personal_project_repo.get_by_id_for_user(project_id, user_id)
         if project is None:
             raise ValueError("Personal project not found")
-        if data.name is not None:
-            project.name = data.name
-        if data.description is not None:
-            project.description = data.description
-        if data.image_url is not None:
-            project.image_url = data.image_url
-        if data.github_url is not None:
-            project.github_url = data.github_url
-        if data.live_url is not None:
-            project.live_url = data.live_url
-        if data.is_public is not None:
-            project.is_public = data.is_public
-        if data.is_featured is not None:
-            project.is_featured = data.is_featured
-        if data.tech_stack is not None:
-            project.tech_stack = await self.skill_repo.get_or_create_many(data.tech_stack)
+        updates = data.model_dump(exclude_unset=True)
+        previous_image_path = project.image_url
+
+        for field, value in updates.items():
+            if field == "tech_stack":
+                project.tech_stack = await self.skill_repo.get_or_create_many(value or [])
+                continue
+            setattr(project, field, value)
+
         await self.db.flush()
+
+        if "image_url" in updates and updates["image_url"] is None and previous_image_path is not None:
+            await self.storage.delete_file(
+                bucket=settings.supabase_project_images_bucket,
+                path=previous_image_path,
+            )
+
         return await self._personal_project_to_out(project)
 
     async def delete_personal_project(self, project_id: UUID, user_id: UUID) -> None:
         project = await self.personal_project_repo.get_by_id_for_user(project_id, user_id)
         if project is None:
             raise ValueError("Personal project not found")
+        image_path = project.image_url
         await self.personal_project_repo.delete(project)
+        await self.storage.delete_file(
+            bucket=settings.supabase_project_images_bucket,
+            path=image_path,
+        )
 
     async def update_testimonial(
         self, project_id: UUID, user_id: UUID, data: ProjectTestimonialUpdate

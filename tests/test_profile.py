@@ -1,8 +1,10 @@
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.models.profile import CertificationEntry, EducationEntry, Profile, WorkExperience
 from app.models.user import User
+from app.services.storage_service import StorageService
 from app.services.profile_service import ProfileService
 
 
@@ -89,6 +91,48 @@ async def test_work_experience_crud(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_work_experience_update_preserves_existing_image_when_not_provided(
+    client: AsyncClient,
+    db_session,
+    test_user: User,
+):
+    bootstrap_response = await client.get("/api/v1/profile")
+    assert bootstrap_response.status_code == 200
+
+    profile = (
+        await db_session.execute(select(Profile).where(Profile.user_id == test_user.id))
+    ).scalar_one()
+
+    entry = WorkExperience(
+        profile_id=profile.id,
+        title="Engineer",
+        company="Test Co",
+        start_date="2024-01-01",
+        is_current=True,
+        image_url="stored/company.png",
+        sort_order=0,
+    )
+    db_session.add(entry)
+    await db_session.commit()
+
+    response = await client.put(
+        f"/api/v1/profile/work-experience/{entry.id}",
+        json={
+            "title": "Senior Engineer",
+            "company": "Test Co",
+            "start_date": "2024-01-01",
+            "is_current": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["image_url"] == "stored/company.png"
+
+    await db_session.refresh(entry)
+    assert entry.image_url == "stored/company.png"
+
+
+@pytest.mark.asyncio
 async def test_education_crud(client: AsyncClient):
     # Create
     response = await client.post("/api/v1/profile/education", json={
@@ -144,6 +188,59 @@ async def test_certification_crud(client: AsyncClient):
 
     delete_response = await client.delete(f"/api/v1/profile/certifications/{entry_id}")
     assert delete_response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_work_experience_update_can_clear_existing_image_and_delete_storage_file(
+    client: AsyncClient,
+    db_session,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    deleted: list[tuple[str, str | None]] = []
+
+    async def fake_delete_file(self, *, bucket: str, path: str | None):
+        deleted.append((bucket, path))
+        return None
+
+    monkeypatch.setattr(StorageService, "delete_file", fake_delete_file)
+
+    bootstrap_response = await client.get("/api/v1/profile")
+    assert bootstrap_response.status_code == 200
+
+    profile = (
+        await db_session.execute(select(Profile).where(Profile.user_id == test_user.id))
+    ).scalar_one()
+
+    entry = WorkExperience(
+        profile_id=profile.id,
+        title="Engineer",
+        company="Test Co",
+        start_date="2024-01-01",
+        is_current=True,
+        image_url="stored/company.png",
+        sort_order=0,
+    )
+    db_session.add(entry)
+    await db_session.commit()
+
+    response = await client.put(
+        f"/api/v1/profile/work-experience/{entry.id}",
+        json={
+            "title": "Engineer",
+            "company": "Test Co",
+            "start_date": "2024-01-01",
+            "is_current": True,
+            "image_url": None,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["image_url"] is None
+
+    await db_session.refresh(entry)
+    assert entry.image_url is None
+    assert deleted == [("company-images", "stored/company.png")]
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,8 @@
 import pytest
 from httpx import AsyncClient
 
+from app.services.storage_service import StorageService
+
 
 @pytest.mark.asyncio
 async def test_workspace_list(client: AsyncClient):
@@ -102,6 +104,56 @@ async def test_project_and_todo_flow(client: AsyncClient):
     # Delete project
     response = await client.delete(f"/api/v1/projects/{project_id}")
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_project_update_can_clear_existing_image_and_delete_storage_file(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    deleted: list[tuple[str, str | None]] = []
+
+    async def fake_delete_file(self, *, bucket: str, path: str | None):
+        deleted.append((bucket, path))
+        return None
+
+    monkeypatch.setattr(StorageService, "delete_file", fake_delete_file)
+
+    workspace = await client.post(
+        "/api/v1/profile/work-experience",
+        json={
+            "title": "Engineer",
+            "company": "Test Co",
+            "start_date": "2024",
+        },
+    )
+    work_experience_id = workspace.json()["id"]
+
+    create_response = await client.post(
+        f"/api/v1/work-experiences/{work_experience_id}/projects",
+        json={
+            "name": "Client Management System",
+            "description": "Internal tool",
+            "image_url": "stored/project.png",
+            "tech_stack": ["Next.js", "TypeScript"],
+        },
+    )
+    assert create_response.status_code == 201
+    project_id = create_response.json()["data"]["id"]
+
+    update_response = await client.put(
+        f"/api/v1/projects/{project_id}",
+        json={
+            "name": "Client Management System",
+            "description": "Internal tool",
+            "image_url": None,
+            "tech_stack": ["Next.js", "TypeScript"],
+        },
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json()["data"]["image_url"] is None
+    assert deleted == [("project-images", "stored/project.png")]
 
 
 @pytest.mark.asyncio

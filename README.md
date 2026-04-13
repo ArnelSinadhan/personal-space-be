@@ -62,6 +62,7 @@ Important values:
 - `VAULT_ENCRYPTION_SECRET`
 - `JWT_SECRET`
 - `ALLOWED_ORIGINS`
+- `PUBLIC_TESTIMONIAL_CAPTCHA_SECRET`
 
 Notes:
 
@@ -70,6 +71,47 @@ Notes:
 - You can either paste the Firebase service account JSON into `FIREBASE_SERVICE_ACCOUNT_KEY` as one line, or use `FIREBASE_SERVICE_ACCOUNT_PATH`.
 - `VAULT_ENCRYPTION_SECRET` should be a stable secret, not a placeholder.
 - In Railway, the container should bind to the platform-provided `PORT` variable.
+- `PUBLIC_TESTIMONIAL_CAPTCHA_SECRET` is the Cloudflare Turnstile secret key used to validate public testimonial submissions.
+
+## Cloudflare Turnstile Setup
+
+The public testimonial endpoint supports Cloudflare Turnstile protection.
+
+This backend expects:
+
+- `PUBLIC_TESTIMONIAL_CAPTCHA_SECRET` in `personal-space-be`
+
+The portfolio frontend expects:
+
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` in `personal-portfolio-v2`
+
+To create the keys:
+
+1. Open the Cloudflare dashboard and go to Turnstile.
+2. Select `Add widget`.
+3. Give it a name like `portfolio-testimonials`.
+4. Add the hostnames where the portfolio runs, for example:
+   - `localhost`
+   - your production portfolio domain
+5. Choose a widget mode. `Managed` is a good default.
+6. Create the widget and copy both values:
+   - `sitekey` for the frontend
+   - `secret key` for the backend
+
+Example env values:
+
+```env
+# personal-portfolio-v2
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=your-cloudflare-turnstile-sitekey
+
+# personal-space-be
+PUBLIC_TESTIMONIAL_CAPTCHA_SECRET=your-cloudflare-turnstile-secret
+```
+
+References:
+
+- [Cloudflare Turnstile: Get started](https://developers.cloudflare.com/turnstile/get-started/)
+- [Cloudflare Turnstile: Dashboard widget management](https://developers.cloudflare.com/turnstile/get-started/widget-management/dashboard/)
 
 ## Local Development
 
