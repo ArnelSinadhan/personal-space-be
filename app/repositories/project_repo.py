@@ -51,7 +51,7 @@ class PersonalProjectRepository(BaseRepository[PersonalProject]):
             .join(Profile, PersonalProject.profile_id == Profile.id)
             .where(Profile.user_id == user_id)
             .options(selectinload(PersonalProject.tech_stack))
-            .order_by(PersonalProject.sort_order)
+            .order_by(PersonalProject.completed_at.desc().nulls_last())
         )
         return list(result.scalars().all())
 

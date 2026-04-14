@@ -9,7 +9,11 @@ from app.enums import ProjectLifecycleStatus, ProjectTestimonialStatus, TodoStat
 from app.models.profile import Profile, WorkExperience
 from app.models.project import PersonalProject, Project, ProjectTestimonial
 from app.models.todo import Todo
-from app.repositories.profile_repo import ProfileRepository, SkillRepository, WorkExperienceRepository
+from app.repositories.profile_repo import (
+    ProfileRepository,
+    SkillRepository,
+    WorkExperienceRepository,
+)
 from app.repositories.project_repo import PersonalProjectRepository, ProjectRepository
 from app.repositories.todo_repo import TodoRepository
 from app.schemas.project import (
@@ -47,10 +51,14 @@ class ProjectService:
     async def get_workspaces_for_user(
         self, user_id: UUID, *, current_only: bool = False
     ) -> list[WorkExperienceWorkspaceOut]:
-        workspaces = await self.work_repo.get_all_for_user(user_id, current_only=current_only)
+        workspaces = await self.work_repo.get_all_for_user(
+            user_id, current_only=current_only
+        )
         return [await self._workspace_to_out(workspace) for workspace in workspaces]
 
-    async def get_personal_projects_for_user(self, user_id: UUID) -> list[PersonalProjectOut]:
+    async def get_personal_projects_for_user(
+        self, user_id: UUID
+    ) -> list[PersonalProjectOut]:
         projects = await self.personal_project_repo.get_all_for_user(user_id)
         return [await self._personal_project_to_out(project) for project in projects]
 
@@ -97,13 +105,19 @@ class ProjectService:
 
         for field, value in updates.items():
             if field == "tech_stack":
-                project.tech_stack = await self.skill_repo.get_or_create_many(value or [])
+                project.tech_stack = await self.skill_repo.get_or_create_many(
+                    value or []
+                )
                 continue
             setattr(project, field, value)
 
         await self.db.flush()
 
-        if "image_url" in updates and updates["image_url"] is None and previous_image_path is not None:
+        if (
+            "image_url" in updates
+            and updates["image_url"] is None
+            and previous_image_path is not None
+        ):
             await self.storage.delete_file(
                 bucket=settings.supabase_project_images_bucket,
                 path=previous_image_path,
@@ -155,7 +169,9 @@ class ProjectService:
     async def update_personal_project(
         self, project_id: UUID, user_id: UUID, data: PersonalProjectUpdate
     ) -> PersonalProjectOut:
-        project = await self.personal_project_repo.get_by_id_for_user(project_id, user_id)
+        project = await self.personal_project_repo.get_by_id_for_user(
+            project_id, user_id
+        )
         if project is None:
             raise ValueError("Personal project not found")
         updates = data.model_dump(exclude_unset=True)
@@ -164,13 +180,19 @@ class ProjectService:
 
         for field, value in updates.items():
             if field == "tech_stack":
-                project.tech_stack = await self.skill_repo.get_or_create_many(value or [])
+                project.tech_stack = await self.skill_repo.get_or_create_many(
+                    value or []
+                )
                 continue
             setattr(project, field, value)
 
         await self.db.flush()
 
-        if "image_url" in updates and updates["image_url"] is None and previous_image_path is not None:
+        if (
+            "image_url" in updates
+            and updates["image_url"] is None
+            and previous_image_path is not None
+        ):
             await self.storage.delete_file(
                 bucket=settings.supabase_project_images_bucket,
                 path=previous_image_path,
@@ -179,7 +201,9 @@ class ProjectService:
         return await self._personal_project_to_out(project)
 
     async def delete_personal_project(self, project_id: UUID, user_id: UUID) -> None:
-        project = await self.personal_project_repo.get_by_id_for_user(project_id, user_id)
+        project = await self.personal_project_repo.get_by_id_for_user(
+            project_id, user_id
+        )
         if project is None:
             raise ValueError("Personal project not found")
         image_path = project.image_url
@@ -199,7 +223,9 @@ class ProjectService:
         testimonial = project.testimonial
         if testimonial is None:
             if not data.name or not data.message:
-                raise ValueError("Name and message are required to create a testimonial")
+                raise ValueError(
+                    "Name and message are required to create a testimonial"
+                )
             testimonial = ProjectTestimonial(
                 project_id=project.id,
                 name=data.name,
@@ -234,7 +260,9 @@ class ProjectService:
 
     # -- Todos ---------------------------------------------------------------
 
-    async def create_todo(self, project_id: UUID, user_id: UUID, data: TodoCreate) -> TodoOut:
+    async def create_todo(
+        self, project_id: UUID, user_id: UUID, data: TodoCreate
+    ) -> TodoOut:
         project = await self.project_repo.get_by_id_for_user(project_id, user_id)
         if project is None:
             raise ValueError("Project not found")
@@ -252,7 +280,9 @@ class ProjectService:
         await self.db.flush()
         return TodoOut.model_validate(todo)
 
-    async def update_todo(self, todo_id: UUID, user_id: UUID, data: TodoUpdate) -> TodoOut:
+    async def update_todo(
+        self, todo_id: UUID, user_id: UUID, data: TodoUpdate
+    ) -> TodoOut:
         todo = await self.todo_repo.get_by_id_for_user(todo_id, user_id)
         if todo is None:
             raise ValueError("Todo not found")
@@ -281,7 +311,14 @@ class ProjectService:
 
     # -- Serialization -------------------------------------------------------
 
-    async def _workspace_to_out(self, workspace: WorkExperience) -> WorkExperienceWorkspaceOut:
+    async def _workspace_to_out(
+        self, workspace: WorkExperience
+    ) -> WorkExperienceWorkspaceOut:
+        sorted_projects = sorted(
+            workspace.projects,
+            key=lambda p: p.completed_at or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
         return WorkExperienceWorkspaceOut(
             id=workspace.id,
             title=workspace.title,
@@ -290,7 +327,9 @@ class ProjectService:
             end_date=workspace.end_date,
             is_current=workspace.is_current,
             image_url=await self.storage.resolve_company_url(workspace.image_url),
-            projects=[await self._project_to_out(project) for project in workspace.projects],
+            projects=[
+                await self._project_to_out(project) for project in sorted_projects
+            ],
         )
 
     async def _project_to_out(self, project: Project) -> ProjectOut:
@@ -347,15 +386,23 @@ class ProjectService:
 
         return {
             "lifecycle_status": status,
-            "completed_at": completed_at if status == ProjectLifecycleStatus.COMPLETED.value else None,
-            "archived_at": archived_at if status == ProjectLifecycleStatus.ARCHIVED.value else None,
+            "completed_at": (
+                completed_at
+                if status == ProjectLifecycleStatus.COMPLETED.value
+                else None
+            ),
+            "archived_at": (
+                archived_at if status == ProjectLifecycleStatus.ARCHIVED.value else None
+            ),
             "outcome_summary": outcome_summary,
             **(
                 {"completed_at": completed_at or now}
                 if status == ProjectLifecycleStatus.COMPLETED.value
-                else {"archived_at": archived_at or now}
-                if status == ProjectLifecycleStatus.ARCHIVED.value
-                else {}
+                else (
+                    {"archived_at": archived_at or now}
+                    if status == ProjectLifecycleStatus.ARCHIVED.value
+                    else {}
+                )
             ),
         }
 
@@ -384,10 +431,14 @@ class ProjectService:
 
         now = datetime.now(timezone.utc)
         if next_status == ProjectLifecycleStatus.COMPLETED.value:
-            updates["completed_at"] = updates.get("completed_at") or project.completed_at or now
+            updates["completed_at"] = (
+                updates.get("completed_at") or project.completed_at or now
+            )
             updates["archived_at"] = None
         elif next_status == ProjectLifecycleStatus.ARCHIVED.value:
-            updates["archived_at"] = updates.get("archived_at") or project.archived_at or now
+            updates["archived_at"] = (
+                updates.get("archived_at") or project.archived_at or now
+            )
             if "completed_at" not in updates:
                 updates["completed_at"] = project.completed_at
         else:
