@@ -56,6 +56,17 @@ class PublicPortfolioService:
         self.db = db
         self.storage = StorageService()
 
+    def _sort_by_completed_at_desc(self, items):
+        base_dt = datetime.min.replace(tzinfo=timezone.utc)
+        return sorted(
+            items,
+            key=lambda x: (
+                x.completed_at or base_dt,
+                x.created_at or base_dt,
+            ),
+            reverse=True,
+        )
+
     async def get_portfolio(self, slug: str) -> PublicPortfolioOut:
         profile = await self._get_profile_by_slug(slug)
         profile_result = await self.db.execute(
@@ -73,7 +84,9 @@ class PublicPortfolioService:
                 selectinload(Profile.work_experiences)
                 .selectinload(WorkExperience.projects)
                 .selectinload(Project.testimonial),
-                selectinload(Profile.personal_projects).selectinload(PersonalProject.tech_stack),
+                selectinload(Profile.personal_projects).selectinload(
+                    PersonalProject.tech_stack
+                ),
             )
         )
         hydrated_profile = profile_result.scalar_one_or_none()
@@ -93,7 +106,8 @@ class PublicPortfolioService:
 
         for workspace in hydrated_profile.work_experiences:
             workspace_projects: list[PublicProjectOut] = []
-            for project in workspace.projects:
+
+            for project in self._sort_by_completed_at_desc(workspace.projects):
                 if not project.is_public:
                     continue
                 project_out = await self._project_to_out(project, workspace.company)
@@ -108,12 +122,16 @@ class PublicPortfolioService:
                     start_date=workspace.start_date,
                     end_date=workspace.end_date,
                     is_current=workspace.is_current,
-                    image_url=await self.storage.resolve_company_url(workspace.image_url),
+                    image_url=await self.storage.resolve_company_url(
+                        workspace.image_url
+                    ),
                     projects=workspace_projects,
                 )
             )
 
-        for personal_project in hydrated_profile.personal_projects:
+        for personal_project in self._sort_by_completed_at_desc(
+            hydrated_profile.personal_projects
+        ):
             if not personal_project.is_public:
                 continue
             personal_projects_out.append(
@@ -128,7 +146,9 @@ class PublicPortfolioService:
                 email=hydrated_profile.email,
                 phone=hydrated_profile.phone,
                 address=hydrated_profile.address,
-                avatar=await self.storage.resolve_profile_url(hydrated_profile.avatar_url),
+                avatar=await self.storage.resolve_profile_url(
+                    hydrated_profile.avatar_url
+                ),
                 resume_url=await self.storage.resolve_resume_url(
                     hydrated_profile.resume_url
                 ),
@@ -291,7 +311,8 @@ class PublicPortfolioService:
                     message=project.testimonial.message,
                 )
                 if project.testimonial is not None
-                and project.testimonial.status == ProjectTestimonialStatus.APPROVED.value
+                and project.testimonial.status
+                == ProjectTestimonialStatus.APPROVED.value
                 else None
             ),
         )
@@ -303,12 +324,16 @@ class PublicPortfolioService:
             id=str(personal_project.id),
             name=personal_project.name,
             description=personal_project.description,
-            image_url=await self.storage.resolve_project_url(personal_project.image_url),
+            image_url=await self.storage.resolve_project_url(
+                personal_project.image_url
+            ),
             github_url=personal_project.github_url,
             live_url=personal_project.live_url,
             tech_stack=[skill.name for skill in personal_project.tech_stack],
             is_featured=personal_project.is_featured,
-            lifecycle_status=self._coerce_lifecycle_status(personal_project.lifecycle_status),
+            lifecycle_status=self._coerce_lifecycle_status(
+                personal_project.lifecycle_status
+            ),
             completed_at=personal_project.completed_at,
             archived_at=personal_project.archived_at,
             outcome_summary=personal_project.outcome_summary,
@@ -343,7 +368,9 @@ class PublicPortfolioService:
             ProjectTestimonialSubmissionLog.created_at >= window_start,
         )
         if ip_address:
-            query = query.where(ProjectTestimonialSubmissionLog.ip_address == ip_address)
+            query = query.where(
+                ProjectTestimonialSubmissionLog.ip_address == ip_address
+            )
         attempts = int((await self.db.execute(query)).scalar() or 0)
         if attempts >= settings.public_testimonial_rate_limit_max_attempts:
             raise PublicSubmissionRateLimitError(
