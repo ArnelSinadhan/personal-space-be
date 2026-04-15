@@ -11,23 +11,26 @@ from sqlalchemy.orm import selectinload
 from app.enums import ProjectLifecycleStatus
 from app.models.profile import Profile
 from app.models.project import Project
-from app.models.todo import Todo
 from app.models.vault import VaultCategory, VaultEntry
 from app.repositories.profile_repo import WorkExperienceRepository
 from app.schemas.dashboard import (
-    DashboardActiveTask,
-    DashboardCompanyBarDatum,
-    DashboardDonutDatum,
-    DashboardOverviewOut,
+    DashboardOverviewResponse,
     DashboardProfileCompleteness,
-    DashboardProjectProgressDatum,
+    DashboardProjectHealth,
     DashboardStatusCounts,
+    DashboardSummary,
+    DashboardTaskDistributionItem,
     DashboardTechStackDatum,
     DashboardTimeDatum,
     DashboardVaultCategoryDatum,
+    DashboardVaultSummary,
 )
 
-STATUS_LABELS = {
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+STATUS_LABELS: dict[str, str] = {
     "todo": "To Do",
     "in_progress": "In Progress",
     "done": "Done",
@@ -35,7 +38,7 @@ STATUS_LABELS = {
     "pending": "Pending",
 }
 
-STATUS_COLORS = {
+STATUS_COLORS: dict[str, str] = {
     "todo": "#9ca3af",
     "in_progress": "#3b82f6",
     "done": "#22c55e",
@@ -43,7 +46,7 @@ STATUS_COLORS = {
     "pending": "#fbbf24",
 }
 
-CHART_COLORS = [
+CHART_COLORS: list[str] = [
     "#3b82f6",
     "#8b5cf6",
     "#06b6d4",
@@ -54,7 +57,7 @@ CHART_COLORS = [
     "#6366f1",
 ]
 
-PROFILE_COMPLETENESS_FIELDS = [
+PROFILE_COMPLETENESS_FIELDS: list[str] = [
     "Name",
     "Email",
     "Phone",
@@ -69,74 +72,90 @@ PROFILE_COMPLETENESS_FIELDS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Service
+# ---------------------------------------------------------------------------
+
+
 class DashboardService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.work_repo = WorkExperienceRepository(db)
 
-    async def get_overview(self, user_id: UUID) -> DashboardOverviewOut:
+    async def get_overview(self, user_id: UUID) -> DashboardOverviewResponse:
         profile = await self._get_profile_summary(user_id)
         work_experiences = await self.work_repo.get_all_for_user(user_id)
         vault_categories, vault_counts = await self._get_vault_summary(user_id)
 
         flat_tasks = self._flatten_tasks(work_experiences)
         status_counts = self._build_status_counts(flat_tasks)
-        donut_data = self._build_donut_data(status_counts)
-        daily_bar_data = self._build_daily_bar_data(flat_tasks)
-        weekly_area_data = self._build_weekly_area_data(flat_tasks)
-        company_bar_data = self._build_company_bar_data(work_experiences)
-        project_radial_data = self._build_project_progress_data(work_experiences)
-        tech_stack_data = self._build_tech_stack_data(work_experiences)
-        active_tasks = self._build_active_tasks(flat_tasks)
+        task_distribution = self._build_task_distribution(status_counts)
+        daily_trend = self._build_daily_trend(flat_tasks)
+        weekly_trend = self._build_weekly_trend(flat_tasks)
+        project_health = self._build_project_health(work_experiences)
+        tech_stack = self._build_tech_stack(work_experiences)
         profile_completeness = self._build_profile_completeness(
             profile=profile,
             work_experience_count=len(work_experiences),
         )
 
         completed_today = sum(
-            1 for task in flat_tasks if task["status"] == "done" and self._is_same_day(task["completed_at"])
+            1
+            for task in flat_tasks
+            if task["status"] == "done" and self._is_same_day(task["completed_at"])
         )
         completed_this_week = self._count_completed_this_week(flat_tasks)
 
         total_projects = sum(len(work.projects) for work in work_experiences)
-        active_project_count, maintenance_project_count, completed_project_count, archived_project_count = (
-            self._count_projects_by_lifecycle(work_experiences)
-        )
+        (
+            active_project_count,
+            maintenance_project_count,
+            completed_project_count,
+            archived_project_count,
+        ) = self._count_projects_by_lifecycle(work_experiences)
+
         vault_entry_count = sum(vault_counts.values())
 
-        return DashboardOverviewOut(
+        return DashboardOverviewResponse(
             first_name=(profile.name or "there").split(" ")[0] if profile and profile.name else "there",
             profile=profile_completeness,
-            company_count=len(work_experiences),
-            total_projects=total_projects,
-            active_project_count=active_project_count,
-            maintenance_project_count=maintenance_project_count,
-            completed_project_count=completed_project_count,
-            archived_project_count=archived_project_count,
-            total_tasks=len(flat_tasks),
-            completed_today=completed_today,
-            completed_this_week=completed_this_week,
-            streak=self._calculate_streak(flat_tasks),
+            summary=DashboardSummary(
+                company_count=len(work_experiences),
+                total_projects=total_projects,
+                active_project_count=active_project_count,
+                maintenance_project_count=maintenance_project_count,
+                completed_project_count=completed_project_count,
+                archived_project_count=archived_project_count,
+                total_tasks=len(flat_tasks),
+                completed_today=completed_today,
+                completed_this_week=completed_this_week,
+                streak=self._calculate_streak(flat_tasks),
+            ),
             status_counts=DashboardStatusCounts(**status_counts),
-            donut_data=donut_data,
-            daily_bar_data=daily_bar_data,
-            weekly_area_data=weekly_area_data,
-            company_bar_data=company_bar_data,
-            project_radial_data=project_radial_data,
-            tech_stack_data=tech_stack_data,
-            active_tasks=active_tasks,
-            vault_entry_count=vault_entry_count,
-            vault_category_count=len(vault_categories),
-            vault_category_data=[
-                DashboardVaultCategoryDatum(
-                    name=category.name,
-                    value=vault_counts.get(str(category.id), 0),
-                    color=CHART_COLORS[index % len(CHART_COLORS)],
-                )
-                for index, category in enumerate(vault_categories)
-            ],
+            task_distribution=task_distribution,
+            daily_trend=daily_trend,
+            weekly_trend=weekly_trend,
+            project_health=project_health,
+            project_health_total_count=len(project_health),
+            tech_stack=tech_stack,
+            vault=DashboardVaultSummary(
+                entry_count=vault_entry_count,
+                category_count=len(vault_categories),
+                categories=[
+                    DashboardVaultCategoryDatum(
+                        name=category.name,
+                        value=vault_counts.get(str(category.id), 0),
+                        color=CHART_COLORS[index % len(CHART_COLORS)],
+                    )
+                    for index, category in enumerate(vault_categories)
+                ],
+            ),
             has_data=len(flat_tasks) > 0,
         )
+
+    # -----------------------------------------------------------------------
+    # Database helpers
+    # -----------------------------------------------------------------------
 
     async def _get_profile_summary(self, user_id: UUID) -> Profile:
         result = await self.db.execute(
@@ -174,10 +193,19 @@ class DashboardService:
             .where(VaultEntry.user_id == user_id)
             .group_by(VaultEntry.category_id)
         )
-        counts = {str(category_id): count for category_id, count in count_result.all() if category_id}
+        counts = {
+            str(category_id): count
+            for category_id, count in count_result.all()
+            if category_id
+        }
         return categories, counts
 
+    # -----------------------------------------------------------------------
+    # Task flattening
+    # -----------------------------------------------------------------------
+
     def _flatten_tasks(self, work_experiences: list) -> list[dict[str, str | int | None]]:
+        """Return every todo across all operational projects as a flat list of dicts."""
         tasks: list[dict[str, str | int | None]] = []
         for work in work_experiences:
             for project in work.projects:
@@ -197,25 +225,36 @@ class DashboardService:
                     )
         return tasks
 
+    # -----------------------------------------------------------------------
+    # Chart builders
+    # -----------------------------------------------------------------------
+
     def _build_status_counts(self, tasks: list[dict[str, str | int | None]]) -> dict[str, int]:
-        counts = {status: 0 for status in STATUS_LABELS}
+        counts: dict[str, int] = {status: 0 for status in STATUS_LABELS}
         for task in tasks:
             status = str(task["status"])
             counts[status] = counts.get(status, 0) + 1
         return counts
 
-    def _build_donut_data(self, status_counts: dict[str, int]) -> list[DashboardDonutDatum]:
+    def _build_task_distribution(
+        self, status_counts: dict[str, int]
+    ) -> list[DashboardTaskDistributionItem]:
+        """Horizontal bar / status chart data. Includes `status` key so the
+        frontend can drive colour and icon logic without re-parsing the label."""
         return [
-            DashboardDonutDatum(
+            DashboardTaskDistributionItem(
                 name=STATUS_LABELS[status],
                 value=count,
                 color=STATUS_COLORS[status],
+                status=status,
             )
             for status, count in status_counts.items()
             if count > 0
         ]
 
-    def _build_daily_bar_data(self, tasks: list[dict[str, str | int | None]], days: int = 14) -> list[DashboardTimeDatum]:
+    def _build_daily_trend(
+        self, tasks: list[dict[str, str | int | None]], days: int = 14
+    ) -> list[DashboardTimeDatum]:
         now = datetime.now(timezone.utc)
         data: list[DashboardTimeDatum] = []
         for offset in range(days - 1, -1, -1):
@@ -231,7 +270,9 @@ class DashboardService:
             data.append(DashboardTimeDatum(name=label, tasks=count))
         return data
 
-    def _build_weekly_area_data(self, tasks: list[dict[str, str | int | None]], weeks: int = 8) -> list[DashboardTimeDatum]:
+    def _build_weekly_trend(
+        self, tasks: list[dict[str, str | int | None]], weeks: int = 8
+    ) -> list[DashboardTimeDatum]:
         now = datetime.now(timezone.utc)
         current_week_start = (now - timedelta(days=now.weekday())).date()
         data: list[DashboardTimeDatum] = []
@@ -249,46 +290,66 @@ class DashboardService:
             data.append(DashboardTimeDatum(name=f"W{weeks - offset}", tasks=count))
         return data
 
-    def _build_company_bar_data(self, work_experiences: list) -> list[DashboardCompanyBarDatum]:
-        data: list[DashboardCompanyBarDatum] = []
-        for work in work_experiences:
-            todos = [
-                todo
-                for project in work.projects
-                if self._is_operational_project(project)
-                for todo in project.todos
-            ]
-            data.append(
-                DashboardCompanyBarDatum(
-                    name=f"{work.company[:12]}..." if len(work.company) > 12 else work.company,
-                    done=sum(1 for todo in todos if todo.status == "done"),
-                    active=sum(1 for todo in todos if todo.status in {"todo", "in_progress", "pending"}),
-                    blocked=sum(1 for todo in todos if todo.status == "blocked"),
-                )
-            )
-        return data
+    def _build_project_health(self, work_experiences: list) -> list[DashboardProjectHealth]:
+        """Build the project health list for operational (active + maintenance) projects.
 
-    def _build_project_progress_data(self, work_experiences: list) -> list[DashboardProjectProgressDatum]:
-        data: list[DashboardProjectProgressDatum] = []
-        index = 0
+        Sorted for dashboard display priority:
+          1. active  before maintenance
+          2. projects with blocked tasks first (attention needed)
+          3. higher progress first (nearly-done projects are motivating)
+          4. stable alphabetical fallback by name
+
+        The full list is always returned. `project_health_total_count` on the
+        response lets the frontend paginate or truncate without losing the
+        total for UI labels.
+        """
+        items: list[DashboardProjectHealth] = []
+        color_index = 0
+
         for work in work_experiences:
             for project in work.projects:
                 if not self._is_operational_project(project):
                     continue
-                total = len(project.todos)
-                done = sum(1 for todo in project.todos if todo.status == "done")
-                progress = round((done / total) * 100) if total else 0
-                data.append(
-                    DashboardProjectProgressDatum(
+
+                todos = project.todos
+                total = len(todos)
+                done_tasks = sum(1 for t in todos if t.status == "done")
+                in_progress_tasks = sum(1 for t in todos if t.status == "in_progress")
+                blocked_tasks = sum(1 for t in todos if t.status == "blocked")
+                pending_tasks = sum(1 for t in todos if t.status == "pending")
+                todo_tasks = sum(1 for t in todos if t.status == "todo")
+                progress = round((done_tasks / total) * 100) if total else 0
+
+                items.append(
+                    DashboardProjectHealth(
+                        id=str(project.id),
                         name=project.name,
+                        lifecycle_status=project.lifecycle_status,
                         progress=progress,
-                        fill=CHART_COLORS[index % len(CHART_COLORS)],
+                        total_tasks=total,
+                        done_tasks=done_tasks,
+                        in_progress_tasks=in_progress_tasks,
+                        blocked_tasks=blocked_tasks,
+                        pending_tasks=pending_tasks,
+                        todo_tasks=todo_tasks,
+                        color=CHART_COLORS[color_index % len(CHART_COLORS)],
                     )
                 )
-                index += 1
-        return data
+                color_index += 1
 
-    def _build_tech_stack_data(self, work_experiences: list, limit: int = 8) -> list[DashboardTechStackDatum]:
+        items.sort(
+            key=lambda p: (
+                0 if p.lifecycle_status == ProjectLifecycleStatus.ACTIVE.value else 1,
+                -p.blocked_tasks,   # more blocked tasks = needs attention first
+                -p.progress,        # higher progress = show first within same tier
+                p.name.lower(),     # stable alphabetical fallback
+            )
+        )
+        return items
+
+    def _build_tech_stack(
+        self, work_experiences: list, limit: int = 8
+    ) -> list[DashboardTechStackDatum]:
         counter: Counter[str] = Counter()
         for work in work_experiences:
             for project in work.projects:
@@ -298,41 +359,9 @@ class DashboardService:
             for name, count in counter.most_common(limit)
         ]
 
-    def _build_active_tasks(self, tasks: list[dict[str, str | int | None]], limit: int = 5) -> list[DashboardActiveTask]:
-        active_statuses = {"in_progress", "blocked", "pending"}
-        active_tasks = [task for task in tasks if task["status"] in active_statuses]
-        active_tasks.sort(key=lambda task: (str(task["status"]) != "in_progress", int(task["sort_order"] or 0)))
-        return [
-            DashboardActiveTask(
-                id=str(task["id"]),
-                title=str(task["title"]),
-                status=str(task["status"]),
-                completed_at=str(task["completed_at"]) if task["completed_at"] else None,
-                sort_order=int(task["sort_order"] or 0),
-                project_name=str(task["project_name"]),
-                company_name=str(task["company_name"]),
-            )
-            for task in active_tasks[:limit]
-        ]
-
-    def _count_projects_by_lifecycle(self, work_experiences: list) -> tuple[int, int, int, int]:
-        counts = Counter(
-            project.lifecycle_status
-            for work in work_experiences
-            for project in work.projects
-        )
-        return (
-            counts.get(ProjectLifecycleStatus.ACTIVE.value, 0),
-            counts.get(ProjectLifecycleStatus.MAINTENANCE.value, 0),
-            counts.get(ProjectLifecycleStatus.COMPLETED.value, 0),
-            counts.get(ProjectLifecycleStatus.ARCHIVED.value, 0),
-        )
-
-    def _is_operational_project(self, project: Project) -> bool:
-        return project.lifecycle_status in {
-            ProjectLifecycleStatus.ACTIVE.value,
-            ProjectLifecycleStatus.MAINTENANCE.value,
-        }
+    # -----------------------------------------------------------------------
+    # Profile completeness
+    # -----------------------------------------------------------------------
 
     def _build_profile_completeness(
         self,
@@ -357,6 +386,33 @@ class DashboardService:
         missing = [label for label, value in checks if not value]
         percent = round((filled / len(PROFILE_COMPLETENESS_FIELDS)) * 100)
         return DashboardProfileCompleteness(percent=percent, missing=missing)
+
+    # -----------------------------------------------------------------------
+    # Project lifecycle helpers
+    # -----------------------------------------------------------------------
+
+    def _count_projects_by_lifecycle(self, work_experiences: list) -> tuple[int, int, int, int]:
+        counts: Counter[str] = Counter(
+            project.lifecycle_status
+            for work in work_experiences
+            for project in work.projects
+        )
+        return (
+            counts.get(ProjectLifecycleStatus.ACTIVE.value, 0),
+            counts.get(ProjectLifecycleStatus.MAINTENANCE.value, 0),
+            counts.get(ProjectLifecycleStatus.COMPLETED.value, 0),
+            counts.get(ProjectLifecycleStatus.ARCHIVED.value, 0),
+        )
+
+    def _is_operational_project(self, project: Project) -> bool:
+        return project.lifecycle_status in {
+            ProjectLifecycleStatus.ACTIVE.value,
+            ProjectLifecycleStatus.MAINTENANCE.value,
+        }
+
+    # -----------------------------------------------------------------------
+    # Date / streak helpers
+    # -----------------------------------------------------------------------
 
     def _count_completed_this_week(self, tasks: list[dict[str, str | int | None]]) -> int:
         now = datetime.now(timezone.utc)

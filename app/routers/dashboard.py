@@ -15,5 +15,4 @@ async def get_dashboard_overview(
     db: AsyncSession = Depends(get_db),
 ):
     service = DashboardService(db)
-    overview = await service.get_overview(user.id)
-    return DashboardOverviewResponse(data=overview)
+    return await service.get_overview(user.id)
