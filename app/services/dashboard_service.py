@@ -16,9 +16,8 @@ from app.models.vault import VaultCategory, VaultEntry
 from app.repositories.profile_repo import WorkExperienceRepository
 from app.schemas.dashboard import (
     DashboardOverviewResponse,
-    DashboardPortfolioBreakdownItem,
     DashboardPortfolioInsightsResponse,
-    DashboardPortfolioInsightsSummary,
+    DashboardPortfolioInsightsPagination,
     DashboardPortfolioVisitor,
     DashboardProfileCompleteness,
     DashboardProjectHealth,
@@ -161,54 +160,38 @@ class DashboardService:
     async def get_portfolio_insights(
         self,
         user_id: UUID,
+        *,
+        page: int = 1,
+        page_size: int = 10,
     ) -> DashboardPortfolioInsightsResponse:
+        total_items_result = await self.db.execute(
+            select(func.count(PortfolioVisitor.id)).where(
+                PortfolioVisitor.user_id == user_id
+            )
+        )
+        total_items = int(total_items_result.scalar() or 0)
+        total_pages = max(1, (total_items + page_size - 1) // page_size)
+        current_page = min(page, total_pages)
+        offset = (current_page - 1) * page_size
+
         result = await self.db.execute(
             select(PortfolioVisitor)
             .where(PortfolioVisitor.user_id == user_id)
             .order_by(PortfolioVisitor.last_visited_at.desc())
+            .offset(offset)
+            .limit(page_size)
         )
         visitors = list(result.scalars().all())
-        now = datetime.now(timezone.utc)
-
-        total_visits = sum(visitor.visit_count for visitor in visitors)
-        unique_visitors = len(visitors)
-        returning_visitors = sum(1 for visitor in visitors if visitor.visit_count > 1)
-        recent_visitors = sum(
-            1
-            for visitor in visitors
-            if visitor.last_visited_at >= now - timedelta(hours=24)
-        )
-
-        location_counts: Counter[str] = Counter()
-        source_counts: Counter[str] = Counter()
-        for visitor in visitors:
-            location_counts[
-                self._format_location(
-                    visitor.country_code,
-                    visitor.region,
-                    visitor.city,
-                )
-            ] += visitor.visit_count
-            source_counts[
-                self._normalize_source_label(visitor.source, visitor.referrer)
-            ] += visitor.visit_count
 
         return DashboardPortfolioInsightsResponse(
-            summary=DashboardPortfolioInsightsSummary(
-                unique_visitors=unique_visitors,
-                total_visits=total_visits,
-                returning_visitors=returning_visitors,
-                recent_visitors=recent_visitors,
-            ),
-            top_locations=self._counter_to_breakdown(location_counts),
-            top_sources=self._counter_to_breakdown(source_counts),
-            visitors=[
+            items=[
                 DashboardPortfolioVisitor(
                     visitor_id=visitor.visitor_id,
                     first_visited_at=visitor.first_visited_at,
                     last_visited_at=visitor.last_visited_at,
                     visit_count=visitor.visit_count,
                     last_path=visitor.last_path,
+                    ip_address=visitor.ip_address,
                     source=visitor.source,
                     referrer=visitor.referrer,
                     country_code=visitor.country_code,
@@ -218,7 +201,42 @@ class DashboardService:
                 )
                 for visitor in visitors
             ],
+            pagination=DashboardPortfolioInsightsPagination(
+                page=current_page,
+                page_size=page_size,
+                total_items=total_items,
+                total_pages=total_pages,
+                has_previous_page=current_page > 1,
+                has_next_page=current_page < total_pages,
+            ),
         )
+
+    async def decrement_portfolio_visitor_visit_count(
+        self,
+        *,
+        user_id: UUID,
+        visitor_id: str,
+        ip_address: str,
+    ) -> None:
+        result = await self.db.execute(
+            select(PortfolioVisitor).where(
+                PortfolioVisitor.user_id == user_id,
+                PortfolioVisitor.visitor_id == visitor_id,
+                PortfolioVisitor.ip_address == ip_address,
+            )
+        )
+        visitor = result.scalar_one_or_none()
+        if visitor is None:
+            raise ValueError(
+                "Portfolio visitor not found for the supplied visitor ID and IP address."
+            )
+
+        if visitor.visit_count <= 1:
+            await self.db.delete(visitor)
+        else:
+            visitor.visit_count -= 1
+
+        await self.db.flush()
 
     # -----------------------------------------------------------------------
     # Database helpers

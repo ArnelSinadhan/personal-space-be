@@ -148,24 +148,13 @@ class DashboardOverviewResponse(BaseModel):
     has_data: bool
 
 
-class DashboardPortfolioBreakdownItem(BaseModel):
-    name: str
-    value: int
-
-
-class DashboardPortfolioInsightsSummary(BaseModel):
-    unique_visitors: int
-    total_visits: int
-    returning_visitors: int
-    recent_visitors: int
-
-
 class DashboardPortfolioVisitor(BaseModel):
     visitor_id: str
     first_visited_at: datetime
     last_visited_at: datetime
     visit_count: int
     last_path: str
+    ip_address: str | None = None
     source: str | None = None
     referrer: str | None = None
     country_code: str | None = None
@@ -174,8 +163,15 @@ class DashboardPortfolioVisitor(BaseModel):
     user_agent: str | None = None
 
 
+class DashboardPortfolioInsightsPagination(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+    has_previous_page: bool
+    has_next_page: bool
+
+
 class DashboardPortfolioInsightsResponse(BaseModel):
-    summary: DashboardPortfolioInsightsSummary
-    top_locations: list[DashboardPortfolioBreakdownItem]
-    top_sources: list[DashboardPortfolioBreakdownItem]
-    visitors: list[DashboardPortfolioVisitor]
+    items: list[DashboardPortfolioVisitor]
+    pagination: DashboardPortfolioInsightsPagination
