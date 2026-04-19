@@ -208,9 +208,12 @@ class StorageService:
         payload = {"expiresIn": expires_in or settings.signed_url_expire_seconds}
 
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(sign_url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
+            try:
+                response = await client.post(sign_url, headers=headers, json=payload)
+                response.raise_for_status()
+                data = response.json()
+            except httpx.HTTPError:
+                return path
 
         signed_url = data.get("signedURL") or data.get("signedUrl") or data.get("signed_url")
         if not signed_url:

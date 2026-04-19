@@ -78,6 +78,12 @@ class Profile(Base, UUIDMixin, TimestampMixin):
         order_by="PersonalProject.sort_order",
         lazy="selectin",
     )
+    upwork_projects: Mapped[list["UpworkProject"]] = relationship(  # type: ignore[name-defined] # noqa: F821
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        order_by="UpworkProject.sort_order",
+        lazy="selectin",
+    )
     skills: Mapped[list[Skill]] = relationship(secondary=profile_skills, lazy="selectin")
 
 

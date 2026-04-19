@@ -9,12 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.enums import ProjectLifecycleStatus
+from app.models.portfolio import PortfolioVisitor
 from app.models.profile import Profile
 from app.models.project import Project
 from app.models.vault import VaultCategory, VaultEntry
 from app.repositories.profile_repo import WorkExperienceRepository
 from app.schemas.dashboard import (
     DashboardOverviewResponse,
+    DashboardPortfolioBreakdownItem,
+    DashboardPortfolioInsightsResponse,
+    DashboardPortfolioInsightsSummary,
+    DashboardPortfolioVisitor,
     DashboardProfileCompleteness,
     DashboardProjectHealth,
     DashboardStatusCounts,
@@ -151,6 +156,68 @@ class DashboardService:
                 ],
             ),
             has_data=len(flat_tasks) > 0,
+        )
+
+    async def get_portfolio_insights(
+        self,
+        user_id: UUID,
+    ) -> DashboardPortfolioInsightsResponse:
+        result = await self.db.execute(
+            select(PortfolioVisitor)
+            .where(PortfolioVisitor.user_id == user_id)
+            .order_by(PortfolioVisitor.last_visited_at.desc())
+        )
+        visitors = list(result.scalars().all())
+        now = datetime.now(timezone.utc)
+
+        total_visits = sum(visitor.visit_count for visitor in visitors)
+        unique_visitors = len(visitors)
+        returning_visitors = sum(1 for visitor in visitors if visitor.visit_count > 1)
+        recent_visitors = sum(
+            1
+            for visitor in visitors
+            if visitor.last_visited_at >= now - timedelta(hours=24)
+        )
+
+        location_counts: Counter[str] = Counter()
+        source_counts: Counter[str] = Counter()
+        for visitor in visitors:
+            location_counts[
+                self._format_location(
+                    visitor.country_code,
+                    visitor.region,
+                    visitor.city,
+                )
+            ] += visitor.visit_count
+            source_counts[
+                self._normalize_source_label(visitor.source, visitor.referrer)
+            ] += visitor.visit_count
+
+        return DashboardPortfolioInsightsResponse(
+            summary=DashboardPortfolioInsightsSummary(
+                unique_visitors=unique_visitors,
+                total_visits=total_visits,
+                returning_visitors=returning_visitors,
+                recent_visitors=recent_visitors,
+            ),
+            top_locations=self._counter_to_breakdown(location_counts),
+            top_sources=self._counter_to_breakdown(source_counts),
+            visitors=[
+                DashboardPortfolioVisitor(
+                    visitor_id=visitor.visitor_id,
+                    first_visited_at=visitor.first_visited_at,
+                    last_visited_at=visitor.last_visited_at,
+                    visit_count=visitor.visit_count,
+                    last_path=visitor.last_path,
+                    source=visitor.source,
+                    referrer=visitor.referrer,
+                    country_code=visitor.country_code,
+                    region=visitor.region,
+                    city=visitor.city,
+                    user_agent=visitor.user_agent,
+                )
+                for visitor in visitors
+            ],
         )
 
     # -----------------------------------------------------------------------
@@ -452,3 +519,37 @@ class DashboardService:
             return False
         completed_date = datetime.fromisoformat(str(completed_at)).date()
         return completed_date == datetime.now(timezone.utc).date()
+
+    def _format_location(
+        self,
+        country_code: str | None,
+        region: str | None,
+        city: str | None,
+    ) -> str:
+        parts = [part for part in (city, region, country_code) if part]
+        return ", ".join(parts) if parts else "Unknown"
+
+    def _normalize_source_label(
+        self,
+        source: str | None,
+        referrer: str | None,
+    ) -> str:
+        if source:
+            return source
+        if referrer:
+            return referrer
+        return "Direct"
+
+    def _counter_to_breakdown(
+        self,
+        counter: Counter[str],
+        *,
+        limit: int = 5,
+    ) -> list[DashboardPortfolioBreakdownItem]:
+        return [
+            DashboardPortfolioBreakdownItem(name=name, value=value)
+            for name, value in sorted(
+                counter.items(),
+                key=lambda item: (-item[1], item[0].lower()),
+            )[:limit]
+        ]

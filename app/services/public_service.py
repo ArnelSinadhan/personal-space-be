@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -10,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.enums import ProjectLifecycleStatus, ProjectTestimonialStatus
-from app.models.portfolio import PortfolioView
+from app.models.portfolio import PortfolioVisitor
 from app.models.profile import Profile, WorkExperience
 from app.models.project import (
     PersonalProject,
@@ -94,8 +95,8 @@ class PublicPortfolioService:
             raise PublicPortfolioNotFoundError("Portfolio not found")
 
         view_count_result = await self.db.execute(
-            select(func.count(PortfolioView.id)).where(
-                PortfolioView.user_id == hydrated_profile.user_id
+            select(func.coalesce(func.sum(PortfolioVisitor.visit_count), 0)).where(
+                PortfolioVisitor.user_id == hydrated_profile.user_id
             )
         )
         total_views = int(view_count_result.scalar() or 0)
@@ -200,24 +201,54 @@ class PublicPortfolioService:
         request: Request,
     ) -> None:
         profile = await self._get_profile_by_slug(slug)
-
-        forwarded_for = request.headers.get("x-forwarded-for")
-        ip_address = (
-            forwarded_for.split(",")[0].strip()
-            if forwarded_for
-            else request.client.host if request.client else None
+        ip_address = self._get_client_ip(request)
+        now = datetime.now(timezone.utc)
+        visitor_id = self._resolve_visitor_id(
+            slug=slug,
+            payload=payload,
+            ip_address=ip_address,
+            user_agent=request.headers.get("user-agent"),
         )
+        country_code, region, city = self._extract_location(request)
 
-        self.db.add(
-            PortfolioView(
-                user_id=profile.user_id,
-                path=(payload.path or "/")[:255],
-                source=(payload.source or None),
-                referrer=request.headers.get("referer"),
-                user_agent=request.headers.get("user-agent"),
-                ip_address=ip_address,
+        result = await self.db.execute(
+            select(PortfolioVisitor).where(
+                PortfolioVisitor.user_id == profile.user_id,
+                PortfolioVisitor.visitor_id == visitor_id,
             )
         )
+        visitor = result.scalar_one_or_none()
+
+        if visitor is None:
+            self.db.add(
+                PortfolioVisitor(
+                    user_id=profile.user_id,
+                    visitor_id=visitor_id,
+                    first_visited_at=now,
+                    last_visited_at=now,
+                    visit_count=1,
+                    last_path=(payload.path or "/")[:255],
+                    source=payload.source,
+                    referrer=request.headers.get("referer"),
+                    user_agent=request.headers.get("user-agent"),
+                    ip_address=ip_address,
+                    country_code=country_code,
+                    region=region,
+                    city=city,
+                )
+            )
+        else:
+            visitor.last_visited_at = now
+            visitor.visit_count += 1
+            visitor.last_path = (payload.path or "/")[:255]
+            visitor.source = payload.source or visitor.source
+            visitor.referrer = request.headers.get("referer") or visitor.referrer
+            visitor.user_agent = request.headers.get("user-agent") or visitor.user_agent
+            visitor.ip_address = ip_address or visitor.ip_address
+            visitor.country_code = country_code or visitor.country_code
+            visitor.region = region or visitor.region
+            visitor.city = city or visitor.city
+
         await self.db.flush()
 
     async def submit_project_testimonial(
@@ -353,6 +384,44 @@ class PublicPortfolioService:
             forwarded_for.split(",")[0].strip()
             if forwarded_for
             else request.client.host if request.client else None
+        )
+
+    def _resolve_visitor_id(
+        self,
+        *,
+        slug: str,
+        payload: PortfolioViewCreate,
+        ip_address: str | None,
+        user_agent: str | None,
+    ) -> str:
+        if payload.visitor_id:
+            return payload.visitor_id[:128]
+
+        fingerprint_seed = "|".join(
+            value
+            for value in (slug.strip().lower(), ip_address or "", user_agent or "")
+            if value
+        )
+        if not fingerprint_seed:
+            return f"anonymous-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+        digest = hashlib.sha256(fingerprint_seed.encode("utf-8")).hexdigest()
+        return f"anon-{digest[:24]}"
+
+    def _extract_location(self, request: Request) -> tuple[str | None, str | None, str | None]:
+        country_code = (
+            request.headers.get("x-vercel-ip-country")
+            or request.headers.get("cf-ipcountry")
+            or request.headers.get("x-country-code")
+        )
+        region = (
+            request.headers.get("x-vercel-ip-country-region")
+            or request.headers.get("x-region")
+        )
+        city = request.headers.get("x-vercel-ip-city") or request.headers.get("x-city")
+        return (
+            country_code.strip().upper() if country_code else None,
+            region.strip() if region else None,
+            city.strip() if city else None,
         )
 
     async def _enforce_testimonial_rate_limit(

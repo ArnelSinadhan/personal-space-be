@@ -83,3 +83,81 @@ async def test_dashboard_excludes_completed_project_todos_from_operational_metri
     assert data["project_health"][0]["lifecycle_status"] == "active"
 
     assert completed_project_data["completed_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_dashboard_portfolio_insights_aggregates_unique_visitors(
+    client: AsyncClient,
+):
+    await client.put(
+        "/api/v1/profile/personal",
+        json={"email": "owner@example.com"},
+    )
+    await client.put(
+        "/api/v1/profile/public-settings",
+        json={"is_public_profile_enabled": True},
+    )
+    profile_response = await client.get("/api/v1/profile")
+    slug = profile_response.json()["data"]["public_slug"]
+
+    first_visit = await client.post(
+        f"/api/v1/public/portfolio/{slug}/view",
+        json={"path": "/", "source": "portfolio-site", "visitor_id": "visitor-1"},
+        headers={
+            "x-forwarded-for": "203.0.113.10",
+            "user-agent": "pytest-agent",
+            "x-vercel-ip-country": "PH",
+            "x-vercel-ip-country-region": "Metro Manila",
+            "x-vercel-ip-city": "Pasig",
+        },
+    )
+    assert first_visit.status_code == 201
+
+    second_visit = await client.post(
+        f"/api/v1/public/portfolio/{slug}/view",
+        json={
+            "path": "/projects",
+            "source": "portfolio-site",
+            "visitor_id": "visitor-1",
+        },
+        headers={
+            "x-forwarded-for": "203.0.113.10",
+            "user-agent": "pytest-agent",
+            "x-vercel-ip-country": "PH",
+            "x-vercel-ip-country-region": "Metro Manila",
+            "x-vercel-ip-city": "Pasig",
+        },
+    )
+    assert second_visit.status_code == 201
+
+    third_visit = await client.post(
+        f"/api/v1/public/portfolio/{slug}/view",
+        json={"path": "/", "source": "direct", "visitor_id": "visitor-2"},
+        headers={
+            "x-forwarded-for": "203.0.113.11",
+            "user-agent": "pytest-agent-2",
+            "x-vercel-ip-country": "US",
+            "x-vercel-ip-country-region": "California",
+            "x-vercel-ip-city": "San Francisco",
+        },
+    )
+    assert third_visit.status_code == 201
+
+    response = await client.get("/api/v1/dashboard/portfolio-insights")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["summary"] == {
+        "unique_visitors": 2,
+        "total_visits": 3,
+        "returning_visitors": 1,
+        "recent_visitors": 2,
+    }
+    assert data["top_locations"][0]["name"] == "Pasig, Metro Manila, PH"
+    assert data["top_locations"][0]["value"] == 2
+    assert data["top_sources"][0]["name"] == "portfolio-site"
+    assert data["top_sources"][0]["value"] == 2
+    assert data["visitors"][0]["visitor_id"] == "visitor-2"
+    assert data["visitors"][1]["visitor_id"] == "visitor-1"
+    assert data["visitors"][1]["visit_count"] == 2
+    assert data["visitors"][1]["last_path"] == "/projects"

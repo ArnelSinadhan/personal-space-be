@@ -110,6 +110,14 @@ class PublicPortfolioResponse(BaseModel):
 class PortfolioViewCreate(BaseModel):
     path: str | None = "/"
     source: str | None = None
+    visitor_id: str | None = Field(None, min_length=6, max_length=128)
+
+    @field_validator("path", "source", "visitor_id", mode="before")
+    @classmethod
+    def strip_optional_text(cls, value: str | None):
+        if isinstance(value, str):
+            value = value.strip()
+        return value or None
 
 
 class PublicProjectTestimonialCreate(BaseModel):

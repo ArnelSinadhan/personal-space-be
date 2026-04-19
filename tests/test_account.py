@@ -6,7 +6,7 @@ from app.auth import firebase
 from app.config import settings
 from app.models import (
     EducationEntry,
-    PortfolioView,
+    PortfolioVisitor,
     Profile,
     Project,
     Skill,
@@ -33,11 +33,18 @@ async def test_delete_account_removes_firebase_storage_and_database_records(
     test_user: User,
     monkeypatch: pytest.MonkeyPatch,
 ):
+    shared_skill = Skill(name="Shared Skill")
+    orphan_profile_skill = Skill(name="Orphan Profile Skill")
+    orphan_project_skill = Skill(name="Orphan Project Skill")
+    orphan_resume_skill = Skill(name="Orphan Resume Skill")
+    orphan_resume_project_skill = Skill(name="Orphan Resume Project Skill")
+
     profile = Profile(
         user_id=test_user.id,
         name="Test User",
         avatar_url=f"{test_user.id}/avatar.jpg",
         resume_url=f"{test_user.id}/resume.pdf",
+        skills=[shared_skill, orphan_profile_skill],
     )
     db_session.add(profile)
     await db_session.flush()
@@ -56,28 +63,10 @@ async def test_delete_account_removes_firebase_storage_and_database_records(
         work_experience_id=work_experience.id,
         name="Project",
         image_url=f"{test_user.id}/project-id/project.png",
+        tech_stack=[shared_skill, orphan_project_skill],
     )
     db_session.add(project)
     await db_session.flush()
-
-    shared_skill = Skill(name="Shared Skill")
-    orphan_profile_skill = Skill(name="Orphan Profile Skill")
-    orphan_project_skill = Skill(name="Orphan Project Skill")
-    orphan_resume_skill = Skill(name="Orphan Resume Skill")
-    orphan_resume_project_skill = Skill(name="Orphan Resume Project Skill")
-    db_session.add_all(
-        [
-            shared_skill,
-            orphan_profile_skill,
-            orphan_project_skill,
-            orphan_resume_skill,
-            orphan_resume_project_skill,
-        ]
-    )
-    await db_session.flush()
-
-    profile.skills.extend([shared_skill, orphan_profile_skill])
-    project.tech_stack.extend([shared_skill, orphan_project_skill])
 
     db_session.add(Todo(project_id=project.id, title="Todo"))
     db_session.add(EducationEntry(profile_id=profile.id, degree="BSIT", school="ICCT", years="2019-2023"))
@@ -87,18 +76,34 @@ async def test_delete_account_removes_firebase_storage_and_database_records(
     db_session.add(category)
     await db_session.flush()
     db_session.add(VaultEntry(user_id=test_user.id, category_id=category.id, title="Vault", username="user", encrypted_password="secret"))
-    resume = Resume(user_id=test_user.id, template="classic", name="Resume")
+    resume = Resume(
+        user_id=test_user.id,
+        template="classic",
+        name="Resume",
+        skills=[shared_skill, orphan_resume_skill],
+    )
     db_session.add(resume)
     await db_session.flush()
     db_session.add(ResumeExperience(resume_id=resume.id, title="Engineer", company="Acme", start_date="2024", end_date=""))
     db_session.add(ResumeEducation(resume_id=resume.id, degree="BSIT", school="ICCT", years="2019-2023"))
-    resume.skills.extend([shared_skill, orphan_resume_skill])
-    resume_project = ResumeProject(resume_id=resume.id, name="Portfolio")
+    resume_project = ResumeProject(
+        resume_id=resume.id,
+        name="Portfolio",
+        tech_stack=[shared_skill, orphan_resume_project_skill],
+    )
     db_session.add(resume_project)
     await db_session.flush()
-    resume_project.tech_stack.extend([shared_skill, orphan_resume_project_skill])
     db_session.add(ResumeLink(resume_id=resume.id, label="GitHub", url="https://example.com"))
-    db_session.add(PortfolioView(user_id=test_user.id, path="/portfolio"))
+    db_session.add(
+        PortfolioVisitor(
+            user_id=test_user.id,
+            visitor_id="visitor-1",
+            visit_count=1,
+            first_visited_at=resume.created_at,
+            last_visited_at=resume.created_at,
+            last_path="/portfolio",
+        )
+    )
     await db_session.commit()
 
     deleted_prefixes: list[tuple[str, str]] = []
@@ -152,7 +157,7 @@ async def test_delete_account_removes_firebase_storage_and_database_records(
         ResumeEducation,
         ResumeProject,
         ResumeLink,
-        PortfolioView,
+        PortfolioVisitor,
     ):
         result = await db_session.execute(select(model))
         assert result.scalars().all() == []

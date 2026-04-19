@@ -139,3 +139,60 @@ class PersonalProject(Base, UUIDMixin, TimestampMixin):
         secondary=personal_project_tech_stacks,
         lazy="selectin",
     )
+
+
+# ---------------------------------------------------------------------------
+# Join table: upwork project ↔ skill (tech stack)
+# ---------------------------------------------------------------------------
+
+upwork_project_tech_stacks = Table(
+    "upwork_project_tech_stacks",
+    Base.metadata,
+    Column(
+        "upwork_project_id",
+        UUID(as_uuid=True),
+        ForeignKey("upwork_projects.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "skill_id",
+        UUID(as_uuid=True),
+        ForeignKey("skills.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
+class UpworkProject(Base, UUIDMixin, TimestampMixin):
+    __tablename__ = "upwork_projects"
+
+    profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    client_name: Mapped[str | None] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    image_url: Mapped[str | None] = mapped_column(Text)
+    github_url: Mapped[str | None] = mapped_column(Text)
+    live_url: Mapped[str | None] = mapped_column(Text)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    lifecycle_status: Mapped[str] = mapped_column(
+        String(20),
+        default=ProjectLifecycleStatus.ACTIVE.value,
+        nullable=False,
+        index=True,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome_summary: Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    profile: Mapped["Profile"] = relationship(back_populates="upwork_projects")  # type: ignore[name-defined] # noqa: F821
+    tech_stack: Mapped[list[Skill]] = relationship(
+        secondary=upwork_project_tech_stacks,
+        lazy="selectin",
+    )

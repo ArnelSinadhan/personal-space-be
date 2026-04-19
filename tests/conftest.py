@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.auth.middleware import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.main import app
 from app.models import Base
@@ -62,7 +63,18 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Provide a transactional session that rolls back after each test."""
     async with test_session_factory() as session:
         yield session
-        await session.rollback()
+        await session.close()
+
+    async with test_engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(
+                text(f'TRUNCATE TABLE "{table.name}" RESTART IDENTITY CASCADE')
+            )
+
+
+@pytest.fixture(autouse=True)
+def disable_public_captcha(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "public_testimonial_captcha_secret", None)
 
 
 @pytest_asyncio.fixture

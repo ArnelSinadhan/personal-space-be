@@ -14,6 +14,10 @@ from app.schemas.project import (
     ProjectResponse,
     ProjectTestimonialUpdate,
     ProjectUpdate,
+    UpworkProjectCreate,
+    UpworkProjectListResponse,
+    UpworkProjectResponse,
+    UpworkProjectUpdate,
 )
 from app.schemas.todo import TodoCreate, TodoOut, TodoUpdate
 from app.services.project_service import ProjectLifecycleConflictError, ProjectService
@@ -168,6 +172,60 @@ async def delete_personal_project(
         await service.delete_personal_project(project_id, user.id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Personal project not found")
+    return MessageResponse(message="Deleted")
+
+
+@router.get("/upwork-projects", response_model=UpworkProjectListResponse)
+async def list_upwork_projects(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProjectService(db)
+    projects = await service.get_upwork_projects_for_user(user.id)
+    return UpworkProjectListResponse(data=projects)
+
+
+@router.post(
+    "/upwork-projects",
+    response_model=UpworkProjectResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_upwork_project(
+    payload: UpworkProjectCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProjectService(db)
+    project = await service.create_upwork_project(user.id, payload)
+    return UpworkProjectResponse(data=project)
+
+
+@router.put("/upwork-projects/{project_id}", response_model=UpworkProjectResponse)
+async def update_upwork_project(
+    project_id: UUID,
+    payload: UpworkProjectUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProjectService(db)
+    try:
+        project = await service.update_upwork_project(project_id, user.id, payload)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Upwork project not found")
+    return UpworkProjectResponse(data=project)
+
+
+@router.delete("/upwork-projects/{project_id}", response_model=MessageResponse)
+async def delete_upwork_project(
+    project_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProjectService(db)
+    try:
+        await service.delete_upwork_project(project_id, user.id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Upwork project not found")
     return MessageResponse(message="Deleted")
 
 

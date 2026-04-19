@@ -1,6 +1,6 @@
 # Import all models here so Alembic can discover them via Base.metadata
 from app.models.base import Base
-from app.models.portfolio import PortfolioView
+from app.models.portfolio import PortfolioVisitor
 from app.models.profile import (
     CertificationEntry,
     EducationEntry,
@@ -24,7 +24,7 @@ __all__ = [
     "Base",
     "CertificationEntry",
     "EducationEntry",
-    "PortfolioView",
+    "PortfolioVisitor",
     "PersonalProject",
     "Profile",
     "Project",

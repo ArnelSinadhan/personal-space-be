@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.profile import Profile, WorkExperience
-from app.models.project import PersonalProject, Project
+from app.models.project import PersonalProject, Project, UpworkProject
 from app.models.todo import Todo
 from app.repositories.base import BaseRepository
 
@@ -63,5 +63,31 @@ class PersonalProjectRepository(BaseRepository[PersonalProject]):
             .join(Profile, PersonalProject.profile_id == Profile.id)
             .where(PersonalProject.id == project_id, Profile.user_id == user_id)
             .options(selectinload(PersonalProject.tech_stack))
+        )
+        return result.scalar_one_or_none()
+
+
+class UpworkProjectRepository(BaseRepository[UpworkProject]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(UpworkProject, db)
+
+    async def get_all_for_user(self, user_id: UUID) -> list[UpworkProject]:
+        result = await self.db.execute(
+            select(UpworkProject)
+            .join(Profile, UpworkProject.profile_id == Profile.id)
+            .where(Profile.user_id == user_id)
+            .options(selectinload(UpworkProject.tech_stack))
+            .order_by(UpworkProject.completed_at.desc().nulls_last())
+        )
+        return list(result.scalars().all())
+
+    async def get_by_id_for_user(
+        self, project_id: UUID, user_id: UUID
+    ) -> UpworkProject | None:
+        result = await self.db.execute(
+            select(UpworkProject)
+            .join(Profile, UpworkProject.profile_id == Profile.id)
+            .where(UpworkProject.id == project_id, Profile.user_id == user_id)
+            .options(selectinload(UpworkProject.tech_stack))
         )
         return result.scalar_one_or_none()

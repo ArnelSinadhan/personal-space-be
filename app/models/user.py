@@ -13,7 +13,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     # Relationships
     profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False)  # type: ignore[name-defined] # noqa: F821
     resume: Mapped["Resume"] = relationship(back_populates="user", uselist=False)  # type: ignore[name-defined] # noqa: F821
-    portfolio_views: Mapped[list["PortfolioView"]] = relationship(back_populates="user")  # type: ignore[name-defined] # noqa: F821
+    portfolio_visitors: Mapped[list["PortfolioVisitor"]] = relationship(back_populates="user")  # type: ignore[name-defined] # noqa: F821
     vault_pin: Mapped["VaultPin"] = relationship(back_populates="user", uselist=False)  # type: ignore[name-defined] # noqa: F821
     vault_categories: Mapped[list["VaultCategory"]] = relationship(back_populates="user")  # type: ignore[name-defined] # noqa: F821
     vault_entries: Mapped[list["VaultEntry"]] = relationship(back_populates="user")  # type: ignore[name-defined] # noqa: F821

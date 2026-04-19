@@ -149,11 +149,14 @@ async def test_public_portfolio_view_is_recorded(client: AsyncClient, db_session
 
     response = await client.post(
         "/api/v1/public/portfolio/owner/view",
-        json={"path": "/", "source": "portfolio-site"},
+        json={"path": "/", "source": "portfolio-site", "visitor_id": "visitor-123"},
         headers={
             "referer": "https://portfolio.example.com",
             "user-agent": "pytest-agent",
             "x-forwarded-for": "203.0.113.10",
+            "x-vercel-ip-country": "PH",
+            "x-vercel-ip-country-region": "Metro Manila",
+            "x-vercel-ip-city": "Pasig",
         },
     )
     assert response.status_code == 201

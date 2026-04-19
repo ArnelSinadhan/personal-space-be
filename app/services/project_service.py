@@ -7,14 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.enums import ProjectLifecycleStatus, ProjectTestimonialStatus, TodoStatus
 from app.models.profile import Profile, WorkExperience
-from app.models.project import PersonalProject, Project, ProjectTestimonial
+from app.models.project import PersonalProject, Project, ProjectTestimonial, UpworkProject
 from app.models.todo import Todo
 from app.repositories.profile_repo import (
     ProfileRepository,
     SkillRepository,
     WorkExperienceRepository,
 )
-from app.repositories.project_repo import PersonalProjectRepository, ProjectRepository
+from app.repositories.project_repo import PersonalProjectRepository, ProjectRepository, UpworkProjectRepository
 from app.repositories.todo_repo import TodoRepository
 from app.schemas.project import (
     PersonalProjectCreate,
@@ -25,6 +25,9 @@ from app.schemas.project import (
     ProjectTestimonialOut,
     ProjectTestimonialUpdate,
     ProjectUpdate,
+    UpworkProjectCreate,
+    UpworkProjectOut,
+    UpworkProjectUpdate,
 )
 from app.schemas.profile import WorkExperienceWorkspaceOut
 from app.schemas.todo import TodoCreate, TodoOut, TodoUpdate
@@ -42,6 +45,7 @@ class ProjectService:
         self.work_repo = WorkExperienceRepository(db)
         self.project_repo = ProjectRepository(db)
         self.personal_project_repo = PersonalProjectRepository(db)
+        self.upwork_project_repo = UpworkProjectRepository(db)
         self.todo_repo = TodoRepository(db)
         self.skill_repo = SkillRepository(db)
         self.storage = StorageService()
@@ -213,6 +217,91 @@ class ProjectService:
             path=image_path,
         )
 
+    # -- Upwork projects -----------------------------------------------------
+
+    async def get_upwork_projects_for_user(
+        self, user_id: UUID
+    ) -> list[UpworkProjectOut]:
+        projects = await self.upwork_project_repo.get_all_for_user(user_id)
+        return [await self._upwork_project_to_out(project) for project in projects]
+
+    async def create_upwork_project(
+        self, user_id: UUID, data: UpworkProjectCreate
+    ) -> UpworkProjectOut:
+        profile = await self.profile_repo.get_or_create(user_id)
+        skills = await self.skill_repo.get_or_create_many(data.tech_stack)
+        existing = await self.upwork_project_repo.get_all_for_user(user_id)
+        lifecycle_fields = self._build_lifecycle_fields(
+            lifecycle_status=data.lifecycle_status,
+            completed_at=data.completed_at,
+            archived_at=data.archived_at,
+            outcome_summary=data.outcome_summary,
+        )
+        project = UpworkProject(
+            profile_id=profile.id,
+            name=data.name,
+            client_name=data.client_name,
+            description=data.description,
+            image_url=data.image_url,
+            github_url=data.github_url,
+            live_url=data.live_url,
+            is_public=data.is_public,
+            is_featured=data.is_featured,
+            sort_order=len(existing),
+            **lifecycle_fields,
+        )
+        project.tech_stack = skills
+        self.db.add(project)
+        await self.db.flush()
+        return await self._upwork_project_to_out(project)
+
+    async def update_upwork_project(
+        self, project_id: UUID, user_id: UUID, data: UpworkProjectUpdate
+    ) -> UpworkProjectOut:
+        project = await self.upwork_project_repo.get_by_id_for_user(
+            project_id, user_id
+        )
+        if project is None:
+            raise ValueError("Upwork project not found")
+        updates = data.model_dump(exclude_unset=True)
+        previous_image_path = project.image_url
+        self._apply_lifecycle_updates(project, updates)
+
+        for field, value in updates.items():
+            if field == "tech_stack":
+                project.tech_stack = await self.skill_repo.get_or_create_many(
+                    value or []
+                )
+                continue
+            setattr(project, field, value)
+
+        await self.db.flush()
+
+        if (
+            "image_url" in updates
+            and updates["image_url"] is None
+            and previous_image_path is not None
+        ):
+            await self.storage.delete_file(
+                bucket=settings.supabase_project_images_bucket,
+                path=previous_image_path,
+            )
+
+        return await self._upwork_project_to_out(project)
+
+    async def delete_upwork_project(self, project_id: UUID, user_id: UUID) -> None:
+        project = await self.upwork_project_repo.get_by_id_for_user(
+            project_id, user_id
+        )
+        if project is None:
+            raise ValueError("Upwork project not found")
+        image_path = project.image_url
+        await self.upwork_project_repo.delete(project)
+        await self.storage.delete_file(
+            bucket=settings.supabase_project_images_bucket,
+            path=image_path,
+        )
+
     async def update_testimonial(
         self, project_id: UUID, user_id: UUID, data: ProjectTestimonialUpdate
     ) -> ProjectOut:
@@ -373,6 +462,26 @@ class ProjectService:
             outcome_summary=project.outcome_summary,
         )
 
+    async def _upwork_project_to_out(
+        self, project: UpworkProject
+    ) -> UpworkProjectOut:
+        return UpworkProjectOut(
+            id=project.id,
+            name=project.name,
+            client_name=project.client_name,
+            description=project.description,
+            image_url=await self.storage.resolve_project_url(project.image_url),
+            github_url=project.github_url,
+            live_url=project.live_url,
+            tech_stack=[s.name for s in project.tech_stack],
+            is_public=project.is_public,
+            is_featured=project.is_featured,
+            lifecycle_status=self._coerce_lifecycle_status(project.lifecycle_status),
+            completed_at=project.completed_at,
+            archived_at=project.archived_at,
+            outcome_summary=project.outcome_summary,
+        )
+
     def _build_lifecycle_fields(
         self,
         *,
@@ -408,7 +517,7 @@ class ProjectService:
 
     def _apply_lifecycle_updates(
         self,
-        project: Project | PersonalProject,
+        project: Project | PersonalProject | UpworkProject,
         updates: dict[str, object | None],
     ) -> None:
         if not {

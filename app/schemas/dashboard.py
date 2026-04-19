@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -144,3 +146,36 @@ class DashboardOverviewResponse(BaseModel):
     vault: DashboardVaultSummary
 
     has_data: bool
+
+
+class DashboardPortfolioBreakdownItem(BaseModel):
+    name: str
+    value: int
+
+
+class DashboardPortfolioInsightsSummary(BaseModel):
+    unique_visitors: int
+    total_visits: int
+    returning_visitors: int
+    recent_visitors: int
+
+
+class DashboardPortfolioVisitor(BaseModel):
+    visitor_id: str
+    first_visited_at: datetime
+    last_visited_at: datetime
+    visit_count: int
+    last_path: str
+    source: str | None = None
+    referrer: str | None = None
+    country_code: str | None = None
+    region: str | None = None
+    city: str | None = None
+    user_agent: str | None = None
+
+
+class DashboardPortfolioInsightsResponse(BaseModel):
+    summary: DashboardPortfolioInsightsSummary
+    top_locations: list[DashboardPortfolioBreakdownItem]
+    top_sources: list[DashboardPortfolioBreakdownItem]
+    visitors: list[DashboardPortfolioVisitor]
