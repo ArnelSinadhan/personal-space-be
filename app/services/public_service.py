@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import httpx
 from fastapi import Request
@@ -209,7 +211,10 @@ class PublicPortfolioService:
             ip_address=ip_address,
             user_agent=request.headers.get("user-agent"),
         )
-        country_code, region, city = self._extract_location(request)
+        country_code, region, city = await self._resolve_location(
+            request=request,
+            ip_address=ip_address,
+        )
 
         result = await self.db.execute(
             select(PortfolioVisitor).where(
@@ -407,22 +412,126 @@ class PublicPortfolioService:
         digest = hashlib.sha256(fingerprint_seed.encode("utf-8")).hexdigest()
         return f"anon-{digest[:24]}"
 
-    def _extract_location(self, request: Request) -> tuple[str | None, str | None, str | None]:
+    def _extract_location(
+        self, request: Request
+    ) -> tuple[str | None, str | None, str | None]:
         country_code = (
             request.headers.get("x-vercel-ip-country")
             or request.headers.get("cf-ipcountry")
             or request.headers.get("x-country-code")
         )
-        region = (
-            request.headers.get("x-vercel-ip-country-region")
-            or request.headers.get("x-region")
-        )
+        region = request.headers.get(
+            "x-vercel-ip-country-region"
+        ) or request.headers.get("x-region")
         city = request.headers.get("x-vercel-ip-city") or request.headers.get("x-city")
         return (
             country_code.strip().upper() if country_code else None,
             region.strip() if region else None,
             city.strip() if city else None,
         )
+
+    async def _resolve_location(
+        self,
+        *,
+        request: Request,
+        ip_address: str | None,
+    ) -> tuple[str | None, str | None, str | None]:
+        country_code, region, city = self._extract_location(request)
+        needs_lookup = not all((country_code, region, city))
+
+        if ip_address is None:
+            return country_code, region, city
+
+        if (
+            not needs_lookup
+            or not settings.public_portfolio_geo_lookup_enabled
+            or not self._is_public_ip(ip_address)
+        ):
+            return country_code, region, city
+
+        lookup_country_code, lookup_region, lookup_city = (
+            await self._lookup_location_from_ip(ip_address)
+        )
+
+        return (
+            country_code or lookup_country_code,
+            region or lookup_region,
+            city or lookup_city,
+        )
+
+    def _is_public_ip(self, ip_address: str | None) -> bool:
+        if not ip_address:
+            return False
+
+        try:
+            parsed_ip = ipaddress.ip_address(ip_address.strip())
+        except ValueError:
+            return False
+
+        return (
+            not parsed_ip.is_private
+            and not parsed_ip.is_loopback
+            and not parsed_ip.is_link_local
+            and not parsed_ip.is_multicast
+            and not parsed_ip.is_reserved
+            and not parsed_ip.is_unspecified
+        )
+
+    async def _lookup_location_from_ip(
+        self,
+        ip_address: str,
+    ) -> tuple[str | None, str | None, str | None]:
+        lookup_url = settings.public_portfolio_geo_lookup_url.format(ip=ip_address)
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=settings.public_portfolio_geo_lookup_timeout_seconds
+            ) as client:
+                response = await client.get(lookup_url)
+            response.raise_for_status()
+            payload = response.json()
+        except (httpx.HTTPError, ValueError, KeyError):
+            return None, None, None
+
+        if not isinstance(payload, dict):
+            return None, None, None
+
+        normalized_payload = payload
+        if self._is_geo_lookup_error(normalized_payload):
+            return None, None, None
+
+        country_code = self._normalize_location_value(
+            normalized_payload.get("country_code")
+            or normalized_payload.get("country")
+            or normalized_payload.get("countryCode")
+        )
+        region = self._normalize_location_value(
+            normalized_payload.get("region")
+            or normalized_payload.get("region_name")
+            or normalized_payload.get("regionName")
+        )
+        city = self._normalize_location_value(normalized_payload.get("city"))
+
+        return (
+            country_code.upper() if country_code else None,
+            region,
+            city,
+        )
+
+    def _is_geo_lookup_error(self, payload: dict[str, Any]) -> bool:
+        if payload.get("error") is True:
+            return True
+        if payload.get("status") == "fail":
+            return True
+        if isinstance(payload.get("bogon"), bool) and payload["bogon"]:
+            return True
+        return False
+
+    def _normalize_location_value(self, value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        normalized_value = value.strip()
+        return normalized_value or None
 
     async def _enforce_testimonial_rate_limit(
         self, project_id, ip_address: str | None

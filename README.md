@@ -35,6 +35,8 @@ Important values:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `PUBLIC_TESTIMONIAL_CAPTCHA_SECRET`
+- `PUBLIC_PORTFOLIO_GEO_LOOKUP_ENABLED`
+- `PUBLIC_PORTFOLIO_GEO_LOOKUP_URL`
 
 ## Local Setup
 
@@ -104,6 +106,8 @@ At minimum:
 Recommended:
 
 - `PUBLIC_TESTIMONIAL_CAPTCHA_SECRET`
+- `PUBLIC_PORTFOLIO_GEO_LOOKUP_ENABLED=true`
+- `PUBLIC_PORTFOLIO_GEO_LOOKUP_URL=https://ipapi.co/{ip}/json/`
 - explicit bucket names if they differ from defaults
 
 ### 2. Build the container

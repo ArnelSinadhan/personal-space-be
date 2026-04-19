@@ -3,8 +3,10 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.config import settings
+from app.models.portfolio import PortfolioVisitor
 from app.models.profile import Profile
 from app.models.project import PersonalProject
+from app.services.public_service import PublicPortfolioService
 
 
 @pytest.mark.asyncio
@@ -164,6 +166,53 @@ async def test_public_portfolio_view_is_recorded(client: AsyncClient, db_session
     portfolio_response = await client.get("/api/v1/public/portfolio/owner")
     assert portfolio_response.status_code == 200
     assert portfolio_response.json()["data"]["stats"]["total_views"] == 1
+
+
+@pytest.mark.asyncio
+async def test_public_portfolio_view_uses_ip_geo_lookup_when_headers_are_missing(
+    client: AsyncClient,
+    db_session,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    await client.put(
+        "/api/v1/profile/personal",
+        json={"email": "owner@example.com"},
+    )
+
+    profile = await db_session.scalar(select(Profile))
+    assert profile is not None
+    profile.is_public_profile_enabled = True
+    await db_session.commit()
+
+    async def fake_lookup_location_from_ip(self, ip_address: str):
+        assert ip_address == "8.8.8.8"
+        return "US", "California", "Mountain View"
+
+    monkeypatch.setattr(
+        PublicPortfolioService,
+        "_lookup_location_from_ip",
+        fake_lookup_location_from_ip,
+    )
+
+    response = await client.post(
+        "/api/v1/public/portfolio/owner/view",
+        json={"path": "/", "source": "upwork", "visitor_id": "visitor-lookup"},
+        headers={
+            "referer": "https://www.upwork.com",
+            "user-agent": "pytest-agent",
+            "x-forwarded-for": "8.8.8.8",
+        },
+    )
+    assert response.status_code == 201
+
+    visitor = await db_session.scalar(
+        select(PortfolioVisitor).where(PortfolioVisitor.visitor_id == "visitor-lookup")
+    )
+    assert visitor is not None
+    assert visitor.ip_address == "8.8.8.8"
+    assert visitor.country_code == "US"
+    assert visitor.region == "California"
+    assert visitor.city == "Mountain View"
 
 
 @pytest.mark.asyncio

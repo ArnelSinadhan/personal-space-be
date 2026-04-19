@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     public_testimonial_captcha_verify_url: str = (
         "https://challenges.cloudflare.com/turnstile/v0/siteverify"
     )
+    public_portfolio_geo_lookup_enabled: bool = True
+    public_portfolio_geo_lookup_url: str = "https://ipapi.co/{ip}/json/"
+    public_portfolio_geo_lookup_timeout_seconds: float = 2.0
 
     # Environment
     environment: str = "development"
