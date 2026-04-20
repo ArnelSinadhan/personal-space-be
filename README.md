@@ -67,6 +67,9 @@ Start the API:
 uvicorn app.main:app --reload
 ```
 
+If you start through Docker or Railway using the included container, the startup
+script now runs `alembic upgrade head` automatically before `uvicorn`.
+
 Default local URLs:
 
 - API: [http://localhost:8000](http://localhost:8000)
@@ -132,6 +135,15 @@ The included `Dockerfile` already runs:
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
+
+Before the API starts, the container entrypoint also runs:
+
+```bash
+./scripts/check_alembic_heads.sh
+alembic upgrade head
+```
+
+You can disable this behavior by setting `RUN_MIGRATIONS_ON_STARTUP=0`.
 
 If you run it without Docker:
 
