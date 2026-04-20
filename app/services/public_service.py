@@ -449,8 +449,9 @@ class PublicPortfolioService:
         ):
             return country_code, region, city
 
+        lookup_ip = ip_address
         lookup_country_code, lookup_region, lookup_city = (
-            await self._lookup_location_from_ip(ip_address)
+            await self._lookup_location_from_ip(lookup_ip)
         )
 
         return (

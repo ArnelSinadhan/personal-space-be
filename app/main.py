@@ -14,6 +14,7 @@ from app.routers import (
     account,
     auth,
     dashboard,
+    notes,
     profile,
     projects,
     public,
@@ -71,6 +72,7 @@ app.include_router(workspaces.router)
 app.include_router(resume.router)
 app.include_router(reports.router)
 app.include_router(dashboard.router)
+app.include_router(notes.router)
 app.include_router(public.router)
 
 # -- Health check ------------------------------------------------------------
