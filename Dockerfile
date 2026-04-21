@@ -18,5 +18,5 @@ RUN chmod +x ./scripts/start.sh ./scripts/check_alembic_heads.sh
 
 EXPOSE 8000
 
-ENTRYPOINT ["./scripts/start.sh"]
+ENTRYPOINT ["sh", "./scripts/start.sh"]
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

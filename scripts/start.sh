@@ -3,7 +3,7 @@ set -eu
 
 if [ "${RUN_MIGRATIONS_ON_STARTUP:-1}" = "1" ]; then
   echo "Checking Alembic migration heads..."
-  ./scripts/check_alembic_heads.sh
+  sh ./scripts/check_alembic_heads.sh
 
   echo "Running database migrations..."
   alembic upgrade head
