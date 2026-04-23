@@ -1,26 +1,24 @@
-"""enable rls for public tables
+"""add deny policies for supabase rls
 
-Revision ID: 7b9a3d2e4f61
-Revises: e5a1c3d9b742
-Create Date: 2026-04-23 17:40:00.000000
+Revision ID: 1f0e9d8c7b6a
+Revises: 7b9a3d2e4f61
+Create Date: 2026-04-23 18:10:00.000000
 """
 
 from collections.abc import Sequence
 
 from alembic import op
-from app.migration_security import (
-    lock_down_public_schema_defaults,
-    lock_down_public_tables,
-)
+from app.migration_security import lock_down_public_tables
 
 # revision identifiers, used by Alembic.
-revision: str = "7b9a3d2e4f61"
-down_revision: str | None = "e5a1c3d9b742"
+revision: str = "1f0e9d8c7b6a"
+down_revision: str | None = "7b9a3d2e4f61"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-PUBLIC_APP_TABLES = (
+PUBLIC_TABLES = (
+    "alembic_version",
     "users",
     "profiles",
     "skills",
@@ -36,6 +34,7 @@ PUBLIC_APP_TABLES = (
     "personal_projects",
     "personal_project_tech_stacks",
     "upwork_projects",
+    "upwork_project_tech_stacks",
     "todos",
     "notes",
     "resumes",
@@ -49,15 +48,13 @@ PUBLIC_APP_TABLES = (
     "vault_categories",
     "vault_entries",
     "portfolio_visitors",
-    "upwork_project_tech_stacks",
 )
 
 
 def upgrade() -> None:
-    lock_down_public_tables(PUBLIC_APP_TABLES)
-    lock_down_public_schema_defaults()
+    lock_down_public_tables(PUBLIC_TABLES)
 
 
 def downgrade() -> None:
-    for table_name in PUBLIC_APP_TABLES:
-        op.execute(f'ALTER TABLE public."{table_name}" DISABLE ROW LEVEL SECURITY')
+    for table_name in PUBLIC_TABLES:
+        op.execute(f'DROP POLICY IF EXISTS deny_direct_client_access ON public."{table_name}"')
