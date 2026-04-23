@@ -11,6 +11,15 @@ from alembic import op
 import sqlalchemy as sa
 ${imports if imports else ""}
 
+# Supabase RLS reminder:
+# When a migration creates a public table, import
+# `lock_down_public_table` from `app.migration_security` and call it
+# immediately after `op.create_table(...)`.
+#
+# Example:
+# from app.migration_security import lock_down_public_table
+# lock_down_public_table("new_table_name")
+#
 # revision identifiers, used by Alembic.
 revision: str = ${repr(up_revision)}
 down_revision: Union[str, None] = ${repr(down_revision)}
